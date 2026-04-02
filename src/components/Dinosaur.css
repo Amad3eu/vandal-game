@@ -1,0 +1,85 @@
+.dinosaur {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center bottom;
+  transition: transform 0.08s ease-out;
+  pointer-events: none;
+}
+
+.spray-character {
+  width: 112%;
+  height: 112%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  user-select: none;
+  filter: var(--spray-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+}
+
+.dinosaur.running .spray-character {
+  animation: sprayRun 0.18s ease-in-out infinite;
+}
+
+.dinosaur.jumping {
+  transform: translateY(-2px) rotate(-5deg) scale(1.03);
+}
+
+.dinosaur.ducking {
+  transform: translateY(8px) rotate(10deg) scale(1.02, 0.82);
+}
+
+.dinosaur.ducking .spray-character {
+  animation-duration: 0.12s;
+}
+
+.player-skate {
+  position: absolute;
+  width: 86%;
+  height: 22%;
+  left: 7%;
+  bottom: -4%;
+  pointer-events: none;
+}
+
+.player-skate-deck {
+  position: absolute;
+  width: 100%;
+  height: 50%;
+  top: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffca3a 0%, #fb5607 100%);
+  box-shadow: 0 0 0 2px #272727 inset;
+}
+
+.player-skate-wheel {
+  position: absolute;
+  width: 17%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #1f1f1f;
+  top: 52%;
+}
+
+.player-skate-wheel-left {
+  left: 15%;
+}
+
+.player-skate-wheel-right {
+  right: 15%;
+}
+
+@keyframes sprayRun {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-1px) rotate(-1deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .spray-character {
+    filter: var(--spray-filter) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.24));
+  }
+}

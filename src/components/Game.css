@@ -1,0 +1,183 @@
+.game-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+}
+
+.game-wrapper.is-night {
+  background: linear-gradient(180deg, #091427 0%, #18254a 100%);
+}
+
+.game-container {
+  position: relative;
+  width: 100%;
+  max-width: 1200px;
+  height: 700px;
+  background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+  border: 3px solid #667eea;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.game-container.is-night {
+  border-color: #8397ff;
+  box-shadow: 0 20px 70px rgba(4, 9, 29, 0.65);
+}
+
+.game-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.bg-layer {
+  position: absolute;
+  width: 100%;
+}
+
+.bg-clouds {
+  height: 60%;
+  background-image: 
+    radial-gradient(300px 300px at 20% 50%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(250px 250px at 70% 40%, rgba(255, 255, 255, 0.5), transparent);
+  background-repeat: repeat-x;
+  background-size: 500px 200px;
+  animation: float 20s linear infinite;
+}
+
+.game-container.is-night .bg-clouds {
+  background-image:
+    radial-gradient(260px 260px at 20% 50%, rgba(255, 255, 255, 0.08), transparent),
+    radial-gradient(220px 220px at 75% 40%, rgba(255, 255, 255, 0.05), transparent);
+}
+
+.bg-stars {
+  height: 58%;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
+    radial-gradient(circle at 62% 18%, rgba(255, 255, 255, 0.75) 0 1.3px, transparent 2px),
+    radial-gradient(circle at 84% 28%, rgba(255, 255, 255, 0.7) 0 1.2px, transparent 2px),
+    radial-gradient(circle at 24% 10%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 42%, rgba(255, 255, 255, 0.6) 0 1px, transparent 2px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.game-container.is-night .bg-stars {
+  opacity: 1;
+}
+
+.bg-ground {
+  height: 20%;
+  bottom: 0;
+  background: linear-gradient(180deg, #90ee90 0%, #228b22 100%);
+  border-top: 4px dashed #666;
+}
+
+.game-container.is-night .bg-ground {
+  background: linear-gradient(180deg, #1d314a 0%, #0c1b2e 100%);
+  border-top-color: #99a8cf;
+}
+
+@keyframes float {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 500px 0;
+  }
+}
+
+.game-over-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.game-over-message {
+  background: white;
+  padding: 40px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideInDown 0.5s ease-out;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.game-over-message h2 {
+  font-size: 2.5em;
+  color: #ff6b6b;
+  margin-bottom: 15px;
+}
+
+.game-over-message p {
+  font-size: 1.1em;
+  color: #666;
+}
+
+.game-container.is-night .game-over-message {
+  background: #0f1b32;
+}
+
+.game-container.is-night .game-over-message p {
+  color: #d2dcff;
+}
+
+@media (max-width: 1024px) {
+  .game-container {
+    max-width: 95%;
+    height: 600px;
+  }
+}
+
+@media (max-width: 768px) {
+  .game-container {
+    max-width: 98%;
+    height: 500px;
+  }
+
+  .game-over-message {
+    padding: 30px;
+  }
+
+  .game-over-message h2 {
+    font-size: 2em;
+  }
+
+  .game-over-message p {
+    font-size: 1em;
+  }
+}
