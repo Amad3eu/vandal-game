@@ -1,5 +1,5 @@
 import './Menu.css'
-import type { DinoColor } from '../App'
+import type { DinoColor, MusicOption } from '../App'
 
 const dinoColors: Array<{ id: DinoColor; label: string; hex: string }> = [
   { id: 'verde', label: 'Verde', hex: '#2e9b42' },
@@ -14,7 +14,9 @@ interface MenuProps {
   finalScore?: number
   highScore: number
   selectedColor: DinoColor
+  selectedMusic: MusicOption
   onColorChange: (color: DinoColor) => void
+  onMusicChange: (music: MusicOption) => void
   onStart: () => void
   onReturnToMenu?: () => void
 }
@@ -24,10 +26,17 @@ export default function Menu({
   finalScore = 0,
   highScore,
   selectedColor,
+  selectedMusic,
   onColorChange,
+  onMusicChange,
   onStart,
   onReturnToMenu
 }: MenuProps) {
+  const totalCoins = (() => {
+    const saved = localStorage.getItem('dinoGameTotalCoins')
+    return saved ? parseInt(saved, 10) : 0
+  })()
+
   return (
     <div className="menu-container">
       <div className="menu-card">
@@ -67,6 +76,10 @@ export default function Menu({
             <span className="stat-label">Recorde</span>
             <span className="stat-value">{highScore}</span>
           </div>
+          <div className="stat">
+            <span className="stat-label">Moedas Totais</span>
+            <span className="stat-value">{totalCoins}</span>
+          </div>
         </div>
 
         <div className="color-picker">
@@ -84,6 +97,18 @@ export default function Menu({
               />
             ))}
           </div>
+        </div>
+
+        <div className="music-picker">
+          <h3>Musica</h3>
+          <select
+            value={selectedMusic}
+            onChange={(e) => onMusicChange(e.target.value as MusicOption)}
+            className="music-select"
+          >
+            <option value="theme">Trilha Principal</option>
+            <option value="none">Sem Musica</option>
+          </select>
         </div>
 
         <div className="menu-buttons">

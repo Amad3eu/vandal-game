@@ -4,7 +4,16 @@ export interface Obstacle {
   y: number
   width: number
   height: number
-  type: 'cactus' | 'bird' | 'skate'
+  type:
+    | 'cactus'
+    | 'bird'
+    | 'skate'
+    | 'duck-bar'
+    | 'floating-platform'
+    | 'trampoline'
+    | 'coin'
+    | 'power-lightning'
+    | 'power-jump'
   passed: boolean
 }
 

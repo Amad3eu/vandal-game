@@ -1,36 +1,73 @@
 .dinosaur {
   position: absolute;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   transform-origin: center bottom;
   transition: transform 0.08s ease-out;
   pointer-events: none;
+  overflow: visible;
 }
 
-.spray-character {
-  width: 112%;
-  height: 112%;
+.run-frame,
+.state-character {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 120%;
+  height: 120%;
+  transform: translateX(-50%);
   object-fit: contain;
+  object-position: center bottom;
   image-rendering: pixelated;
   user-select: none;
-  filter: var(--spray-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+  pointer-events: none;
+  filter: var(--player-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
 }
 
-.dinosaur.running .spray-character {
-  animation: sprayRun 0.18s ease-in-out infinite;
+.run-frame,
+.state-character {
+  opacity: 0;
+}
+
+.run-frame.active,
+.state-character.active {
+  opacity: 1;
+}
+
+.frame-jump,
+.frame-duck {
+  opacity: 0;
 }
 
 .dinosaur.jumping {
-  transform: translateY(-2px) rotate(-5deg) scale(1.03);
+  transform: translateY(-2px) rotate(-5deg);
 }
 
 .dinosaur.ducking {
-  transform: translateY(8px) rotate(10deg) scale(1.02, 0.82);
+  transform: translateY(0) scale(1, 0.9);
 }
 
-.dinosaur.ducking .spray-character {
-  animation-duration: 0.12s;
+.dinosaur.jumping .run-frame,
+.dinosaur.ducking .run-frame {
+  opacity: 0;
+}
+
+.dinosaur.jumping .frame-jump {
+  z-index: 3;
+}
+
+.dinosaur.ducking .frame-duck {
+  z-index: 3;
+}
+
+.dinosaur.ducking .frame-duck {
+  width: 126%;
+  height: 126%;
+}
+
+.dinosaur.has-skate.running:not(.jumping):not(.ducking) .run-frame {
+  opacity: 1;
 }
 
 .player-skate {
@@ -69,17 +106,38 @@
   right: 15%;
 }
 
-@keyframes sprayRun {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-1px) rotate(-1deg);
+@media (max-width: 768px) {
+  .run-frame,
+  .state-character {
+    filter: var(--player-filter) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.24));
   }
 }
 
-@media (max-width: 768px) {
-  .spray-character {
-    filter: var(--spray-filter) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.24));
+/* Skate flicker animation when damaged */
+.dinosaur.skate-flickering {
+  animation: skateGlitch 0.42s steps(2, end) forwards;
+}
+
+@keyframes skateGlitch {
+  0%, 100% {
+    opacity: 1;
+    filter: var(--player-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+    transform: translateX(0);
+  }
+  15% {
+    opacity: 0.25;
+    transform: translateX(-3px) skewX(-6deg);
+  }
+  35% {
+    opacity: 1;
+    transform: translateX(2px) skewX(5deg);
+  }
+  55% {
+    opacity: 0.35;
+    transform: translateX(-2px) skewX(-4deg);
+  }
+  75% {
+    opacity: 1;
+    transform: translateX(1px) skewX(3deg);
   }
 }

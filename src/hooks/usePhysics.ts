@@ -34,8 +34,8 @@ export function usePhysics(config: GameConfig) {
   )
 
   const jump = useCallback(
-    (dino: DinosaurState): DinosaurState => {
-      if (dino.isJumping) return dino
+    (dino: DinosaurState, force = false): DinosaurState => {
+      if (dino.isJumping && !force) return dino
 
       return {
         ...dino,
@@ -56,8 +56,36 @@ export function usePhysics(config: GameConfig) {
     const dinoRight = dino.x + dino.width - dinoInsetX
     const dinoBottom = dino.y + dino.height - dinoInsetY
 
-    const obstacleInsetX = obstacle.type === 'bird' ? 8 : obstacle.type === 'skate' ? 10 : 4
-    const obstacleInsetY = obstacle.type === 'bird' ? 6 : obstacle.type === 'skate' ? 8 : 2
+    const obstacleInsetX = obstacle.type === 'bird'
+      ? 8
+      : obstacle.type === 'skate'
+      ? 10
+      : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'
+      ? 4
+      : obstacle.type === 'coin'
+      ? 5
+      : obstacle.type === 'floating-platform'
+      ? 2
+      : obstacle.type === 'trampoline'
+      ? 6
+      : obstacle.type === 'duck-bar'
+      ? 4
+      : 4
+    const obstacleInsetY = obstacle.type === 'bird'
+      ? 6
+      : obstacle.type === 'skate'
+      ? 8
+      : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'
+      ? 4
+      : obstacle.type === 'coin'
+      ? 5
+      : obstacle.type === 'floating-platform'
+      ? 2
+      : obstacle.type === 'trampoline'
+      ? 6
+      : obstacle.type === 'duck-bar'
+      ? 2
+      : 2
     const obstacleLeft = obstacle.x + obstacleInsetX
     const obstacleTop = obstacle.y + obstacleInsetY
     const obstacleRight = obstacle.x + obstacle.width - obstacleInsetX

@@ -107,6 +107,199 @@
   animation: skateGlow 0.9s ease-in-out infinite;
 }
 
+.obstacle-duck-bar {
+  background: transparent;
+}
+
+.duck-bar-beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 38%;
+  background: linear-gradient(90deg, #7a5a2f 0%, #a57b3f 100%);
+  border-radius: 5px;
+}
+
+.duck-bar-leg {
+  position: absolute;
+  top: 34%;
+  width: 12%;
+  height: 66%;
+  background: #6b4d29;
+  border-radius: 3px;
+}
+
+.duck-bar-leg-left {
+  left: 8%;
+}
+
+.duck-bar-leg-right {
+  right: 8%;
+}
+
+.obstacle-floating-platform {
+  background: transparent;
+  animation: platformFloat 1.2s ease-in-out infinite;
+}
+
+.floating-platform-top {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 28%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8aa7ff 0%, #5f79d9 100%);
+}
+
+.floating-platform-body {
+  position: absolute;
+  top: 22%;
+  width: 94%;
+  left: 3%;
+  height: 54%;
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(180deg, #3f4b87 0%, #2a3260 100%);
+}
+
+.floating-platform-light {
+  position: absolute;
+  bottom: 8%;
+  width: 10%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #5ef5ff;
+  box-shadow: 0 0 8px rgba(94, 245, 255, 0.9);
+}
+
+.floating-platform-light-left {
+  left: 18%;
+}
+
+.floating-platform-light-right {
+  right: 18%;
+}
+
+.obstacle-trampoline {
+  background: transparent;
+  animation: trampolinePulse 0.85s ease-in-out infinite;
+}
+
+.obstacle-coin {
+  background: transparent;
+  animation: coinFloat 0.8s ease-in-out infinite;
+}
+
+.obstacle-power-lightning,
+.obstacle-power-jump {
+  background: transparent;
+  animation: powerFloat 0.95s ease-in-out infinite;
+}
+
+.coin-core {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coin-shine {
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  top: 20%;
+  left: 26%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.power-orb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.power-icon-image {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 250%;
+  height: 250%;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.55));
+}
+
+.power-icon-lightning,
+.power-icon-jump {
+  width: 265%;
+  height: 265%;
+}
+
+.power-orb-lightning {
+  background: radial-gradient(circle at 30% 30%, #f6f8ff 0%, #8eb1ff 48%, #4f74ff 100%);
+  box-shadow: 0 0 10px rgba(98, 124, 255, 0.85);
+}
+
+.power-orb-jump {
+  background: radial-gradient(circle at 30% 30%, #fff8dc 0%, #ffe169 45%, #ff9800 100%);
+  box-shadow: 0 0 10px rgba(255, 169, 32, 0.8);
+}
+
+.power-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.power-icon-lightning {
+  width: 100%;
+  height: 100%;
+}
+
+.power-icon-jump {
+  width: 100%;
+  height: 100%;
+}
+
+.trampoline-base {
+  position: absolute;
+  bottom: 0;
+  width: 92%;
+  left: 4%;
+  height: 46%;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #4f4f5e 0%, #2f2f3b 100%);
+}
+
+.trampoline-surface {
+  position: absolute;
+  top: 8%;
+  width: 100%;
+  height: 28%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff7a8a 0%, #ff4f67 100%);
+}
+
+.trampoline-leg {
+  position: absolute;
+  top: 24%;
+  width: 10%;
+  height: 54%;
+  background: #26262d;
+}
+
+.trampoline-leg-left {
+  left: 16%;
+}
+
+.trampoline-leg-right {
+  right: 16%;
+}
+
 .skate-deck {
   position: absolute;
   width: 86%;
@@ -162,6 +355,46 @@
   }
   50% {
     filter: drop-shadow(0 0 8px rgba(255, 187, 0, 0.8));
+  }
+}
+
+@keyframes platformFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes trampolinePulse {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.96);
+  }
+}
+
+@keyframes coinFloat {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.04);
+  }
+}
+
+@keyframes powerFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
   }
 }
 

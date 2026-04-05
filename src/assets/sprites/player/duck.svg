@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="10 6 12 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- bone -->
+  <rect x="14" y="6" width="6" height="2" fill="#222"/>
+
+  <!-- head -->
+  <rect x="14" y="8" width="6" height="6" fill="#f2c7a5"/>
+
+  <!-- body -->
+  <rect x="12" y="14" width="8" height="4" fill="#8b3a3a"/>
+
+  <!-- legs -->
+  <rect x="12" y="18" width="3" height="4" fill="#2b3a67"/>
+  <rect x="17" y="18" width="3" height="4" fill="#2b3a67"/>
+</svg>

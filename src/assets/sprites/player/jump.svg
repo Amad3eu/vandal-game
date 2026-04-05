@@ -1,0 +1,21 @@
+<svg width="32" height="32" viewBox="10 4 12 20" xmlns="http://www.w3.org/2000/svg">
+  <!-- bone -->
+  <rect x="14" y="4" width="6" height="2" fill="#222"/>
+
+  <!-- head -->
+  <rect x="14" y="6" width="6" height="6" fill="#f2c7a5"/>
+
+  <!-- eye -->
+  <rect x="18" y="8" width="1" height="1" fill="#000"/>
+
+  <!-- body -->
+  <rect x="13" y="12" width="6" height="6" fill="#8b3a3a"/>
+
+  <!-- raised arms -->
+  <rect x="11" y="11" width="2" height="2" fill="#8b3a3a"/>
+  <rect x="19" y="11" width="2" height="2" fill="#8b3a3a"/>
+
+  <!-- legs together -->
+  <rect x="15" y="18" width="2" height="6" fill="#2b3a67"/>
+  <rect x="17" y="18" width="2" height="6" fill="#2b3a67"/>
+</svg>
