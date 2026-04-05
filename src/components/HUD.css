@@ -76,6 +76,16 @@
   color: #8f4d02;
 }
 
+.hud-tag.lightning {
+  background: #dfe7ff;
+  color: #223b9b;
+}
+
+.hud-tag.jump {
+  background: #ffe8c2;
+  color: #8f4a00;
+}
+
 @media (max-width: 768px) {
   .hud {
     top: 10px;

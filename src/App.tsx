@@ -5,6 +5,7 @@ import './App.css'
 
 type GameState = 'menu' | 'playing' | 'gameover'
 export type DinoColor = 'verde' | 'azul' | 'laranja' | 'rosa' | 'cinza'
+export type MusicOption = 'none' | 'theme'
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>('menu')
@@ -12,6 +13,10 @@ export default function App() {
   const [dinoColor, setDinoColor] = useState<DinoColor>(() => {
     const saved = localStorage.getItem('dinoGameColor') as DinoColor | null
     return saved ?? 'verde'
+  })
+  const [selectedMusic, setSelectedMusic] = useState<MusicOption>(() => {
+    const saved = localStorage.getItem('dinoGameMusic') as MusicOption | null
+    return saved ?? 'theme'
   })
   const [highScore, setHighScore] = useState(() => {
     const saved = localStorage.getItem('dinoGameHighScore')
@@ -41,19 +46,27 @@ export default function App() {
     localStorage.setItem('dinoGameColor', color)
   }
 
+  const handleMusicChange = (music: MusicOption) => {
+    setSelectedMusic(music)
+    localStorage.setItem('dinoGameMusic', music)
+  }
+
   return (
     <div className="app">
       {gameState === 'menu' && (
         <Menu
           highScore={highScore}
           selectedColor={dinoColor}
+          selectedMusic={selectedMusic}
           onColorChange={handleColorChange}
+          onMusicChange={handleMusicChange}
           onStart={handleStartGame}
         />
       )}
       {gameState === 'playing' && (
         <Game
           dinosaurColor={dinoColor}
+          selectedMusic={selectedMusic}
           onGameOver={handleGameOver}
         />
       )}
@@ -63,7 +76,9 @@ export default function App() {
           finalScore={score}
           highScore={highScore}
           selectedColor={dinoColor}
+          selectedMusic={selectedMusic}
           onColorChange={handleColorChange}
+          onMusicChange={handleMusicChange}
           onStart={handleStartGame}
           onReturnToMenu={handleReturnToMenu}
         />

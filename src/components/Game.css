@@ -32,66 +32,62 @@
   position: absolute;
   width: 100%;
   height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.background-image-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  transition: opacity 1.2s ease-in-out;
+}
+
+.background-image-layer.day {
+  z-index: 0;
+}
+
+.background-image-layer.night {
   z-index: 1;
 }
 
 .bg-layer {
   position: absolute;
   width: 100%;
+  z-index: 2;
 }
 
 .bg-clouds {
   height: 60%;
-  background-image: 
-    radial-gradient(300px 300px at 20% 50%, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(250px 250px at 70% 40%, rgba(255, 255, 255, 0.5), transparent);
-  background-repeat: repeat-x;
-  background-size: 500px 200px;
-  animation: float 20s linear infinite;
+  display: none;
 }
 
 .game-container.is-night .bg-clouds {
-  background-image:
-    radial-gradient(260px 260px at 20% 50%, rgba(255, 255, 255, 0.08), transparent),
-    radial-gradient(220px 220px at 75% 40%, rgba(255, 255, 255, 0.05), transparent);
+  display: none;
 }
 
 .bg-stars {
   height: 58%;
-  background-image:
-    radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 2px),
-    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
-    radial-gradient(circle at 62% 18%, rgba(255, 255, 255, 0.75) 0 1.3px, transparent 2px),
-    radial-gradient(circle at 84% 28%, rgba(255, 255, 255, 0.7) 0 1.2px, transparent 2px),
-    radial-gradient(circle at 24% 10%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
-    radial-gradient(circle at 72% 42%, rgba(255, 255, 255, 0.6) 0 1px, transparent 2px);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  display: none;
 }
 
 .game-container.is-night .bg-stars {
-  opacity: 1;
+  display: none;
 }
 
 .bg-ground {
-  height: 20%;
+  height: 24%;
   bottom: 0;
-  background: linear-gradient(180deg, #90ee90 0%, #228b22 100%);
-  border-top: 4px dashed #666;
+  background: linear-gradient(180deg, #8f949e 0%, #676d78 42%, #474c56 100%);
+  border-top: 6px solid #b6bcc6;
+  box-shadow: inset 0 8px 0 rgba(255, 255, 255, 0.06);
 }
 
 .game-container.is-night .bg-ground {
-  background: linear-gradient(180deg, #1d314a 0%, #0c1b2e 100%);
-  border-top-color: #99a8cf;
-}
-
-@keyframes float {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 500px 0;
-  }
+  background: linear-gradient(180deg, #5b6270 0%, #3f4653 42%, #2a303a 100%);
+  border-top-color: #8f98aa;
 }
 
 .game-over-overlay {
@@ -106,6 +102,18 @@
   align-items: center;
   z-index: 1000;
   animation: fadeIn 0.3s ease-out;
+}
+
+.dinosaur {
+  z-index: 3;
+}
+
+.obstacles {
+  z-index: 2;
+}
+
+.hud {
+  z-index: 4;
 }
 
 @keyframes fadeIn {
