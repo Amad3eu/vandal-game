@@ -9,6 +9,33 @@
   overflow: visible;
 }
 
+.dinosaur::before {
+  content: '';
+  position: absolute;
+  bottom: 8%;
+  left: 50%;
+  width: 120%;
+  height: 22%;
+  background: radial-gradient(circle at 50% 20%, rgba(0, 0, 0, 0.28), transparent 72%);
+  transform: translateX(-50%);
+  pointer-events: none;
+  filter: blur(1px);
+  opacity: 0.65;
+}
+
+.dinosaur.running:not(.jumping):not(.ducking) {
+  animation: runBounce 0.42s ease-in-out infinite;
+}
+
+@keyframes runBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 .run-frame,
 .state-character {
   position: absolute;
@@ -22,7 +49,7 @@
   image-rendering: pixelated;
   user-select: none;
   pointer-events: none;
-  filter: var(--player-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
 }
 
 .run-frame,
@@ -45,7 +72,7 @@
 }
 
 .dinosaur.ducking {
-  transform: translateY(0) scale(1, 0.9);
+  transform: translateY(0) scale(1, 0.95);
 }
 
 .dinosaur.jumping .run-frame,
@@ -53,17 +80,16 @@
   opacity: 0;
 }
 
-.dinosaur.jumping .frame-jump {
-  z-index: 3;
-}
-
+.dinosaur.jumping .frame-jump,
 .dinosaur.ducking .frame-duck {
   z-index: 3;
 }
 
 .dinosaur.ducking .frame-duck {
-  width: 126%;
-  height: 126%;
+  width: 170%;
+  height: 170%;
+  opacity: 1 !important;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.32));
 }
 
 .dinosaur.has-skate.running:not(.jumping):not(.ducking) .run-frame {
@@ -109,7 +135,7 @@
 @media (max-width: 768px) {
   .run-frame,
   .state-character {
-    filter: var(--player-filter) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.24));
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.24));
   }
 }
 
@@ -121,7 +147,7 @@
 @keyframes skateGlitch {
   0%, 100% {
     opacity: 1;
-    filter: var(--player-filter) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
     transform: translateX(0);
   }
   15% {

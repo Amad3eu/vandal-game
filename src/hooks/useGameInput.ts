@@ -9,14 +9,16 @@ export function useGameInput(
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current.add(e.key.toUpperCase())
+      const key = e.key.toUpperCase()
+      const alreadyPressed = keysPressed.current.has(key)
+      keysPressed.current.add(key)
 
       if (e.key === ' ' || e.key === 'ArrowUp') {
         e.preventDefault()
         onJump()
       }
 
-      if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') {
+      if ((e.key === 'ArrowDown' || e.key.toLowerCase() === 's') && !alreadyPressed) {
         onDuckStart()
       }
     }

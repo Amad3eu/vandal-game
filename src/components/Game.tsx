@@ -5,16 +5,16 @@ import HUD from './HUD'
 import { usePhysics } from '../hooks/usePhysics'
 import { useGameInput } from '../hooks/useGameInput'
 import { DinosaurState, Obstacle, GameConfig } from '../types/game'
-import type { DinoColor, MusicOption } from '../App'
+import type { MusicOption } from '../App'
 import dayBackground from '../assets/background/9.png'
 import nightBackground from '../assets/background/7.png'
 import themeTrack from '../assets/soundtrack/SonoTWS - Tired Of People Act II - SonoTWS (youtube).mp3'
 import './Game.css'
 
 const BASE_CONFIG: Omit<GameConfig, 'groundLevel'> = {
-  playerSize: 64,
-  jumpPower: 17,
-  gravity: 0.9,
+  playerSize: 100,
+  jumpPower: 14,
+  gravity: 0.96,
   obstacleWidth: 36,
   obstacleHeight: 62,
   initialSpeed: 5.8,
@@ -30,20 +30,21 @@ const SKATE_SPEED_MULTIPLIER = 1.28
 const LIGHTNING_DURATION_MS = 3000
 const JUMP_BOOST_DURATION_MS = 4500
 const JUMP_BOOST_MULTIPLIER = 1.35
-const DUCK_HEIGHT = 50
+const DUCK_HEIGHT = 80
 const TRAMPOLINE_BOOST = 1.12
 const COIN_SCORE = 25
 const BACKGROUND_TRANSITION_START = 900
 const BACKGROUND_TRANSITION_END = 1700
-const POWERUP_SIZE = 56
+const POWERUP_SIZE = 84
+const TRAIN_PLATFORM_WIDTH = 240
+const TRAIN_PLATFORM_HEIGHT = 80
 
 interface GameProps {
-  dinosaurColor: DinoColor
   selectedMusic: MusicOption
   onGameOver: (score: number) => void
 }
 
-export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameProps) {
+export default function Game({ selectedMusic, onGameOver }: GameProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<number>()
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -120,66 +121,46 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
   const createFloatingPath = useCallback((): Obstacle[] => {
     const containerWidth = gameContainerRef.current?.clientWidth ?? 1200
     const startX = containerWidth + 20
-    const segmentCount = 4 + Math.floor(Math.random() * 2)
-    const baseY = gameConfig.groundLevel - 150 - Math.floor(Math.random() * 16)
+    const y = gameConfig.groundLevel - TRAIN_PLATFORM_HEIGHT - 8
+    const trainCount = 2 + Math.floor(Math.random() * 3) // 2, 3 ou 4 trens lado a lado
+    const totalWidth = TRAIN_PLATFORM_WIDTH * trainCount
     const spawned: Obstacle[] = []
-    let cursorX = startX
 
-    if (Math.random() < 0.65) {
+    for (let i = 0; i < trainCount; i += 1) {
       spawned.push({
         id: obstacleCounterRef.current++,
-        x: startX - 88,
-        y: gameConfig.groundLevel - 24,
-        width: 60,
-        height: 24,
-        type: 'trampoline',
-        passed: false,
-      })
-    }
-
-    for (let i = 0; i < segmentCount; i += 1) {
-      const width = 120 + Math.floor(Math.random() * 36)
-      const y = baseY + Math.floor(Math.random() * 16) - 8
-
-      spawned.push({
-        id: obstacleCounterRef.current++,
-        x: cursorX,
+        x: startX + i * TRAIN_PLATFORM_WIDTH,
         y,
-        width,
-        height: 30,
-        type: 'floating-platform',
+        width: TRAIN_PLATFORM_WIDTH,
+        height: TRAIN_PLATFORM_HEIGHT,
+        type: 'train',
         passed: false,
       })
-
-      const coinCount = 2
-      for (let c = 0; c < coinCount; c += 1) {
-        spawned.push({
-          id: obstacleCounterRef.current++,
-          x: cursorX + 28 + c * Math.floor(width * 0.45),
-          y: y - 34,
-          width: 18,
-          height: 18,
-          type: 'coin',
-          passed: false,
-        })
-      }
-
-      cursorX += width + 18 + Math.floor(Math.random() * 16)
     }
 
-    const firstPlatform = spawned.find((item) => item.type === 'floating-platform')
-    if (firstPlatform) {
-      const powerType = Math.random() < 0.55 ? 'power-lightning' : 'power-jump'
+    const coinCount = 4
+    for (let c = 0; c < coinCount; c += 1) {
       spawned.push({
         id: obstacleCounterRef.current++,
-        x: firstPlatform.x + firstPlatform.width * 0.52,
-        y: firstPlatform.y - 54,
-        width: POWERUP_SIZE,
-        height: POWERUP_SIZE,
-        type: powerType,
+        x: startX + 40 + c * Math.floor((totalWidth - 80) / coinCount),
+        y: y - 34,
+        width: 18,
+        height: 18,
+        type: 'coin',
         passed: false,
       })
     }
+
+    const powerType = Math.random() < 0.55 ? 'power-lightning' : 'power-jump'
+    spawned.push({
+      id: obstacleCounterRef.current++,
+      x: startX + totalWidth * 0.52,
+      y: y - 54,
+      width: POWERUP_SIZE,
+      height: POWERUP_SIZE,
+      type: powerType,
+      passed: false,
+    })
 
     return spawned
   }, [gameConfig.groundLevel])
@@ -187,19 +168,17 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
   const createObstacle = useCallback((): Obstacle => {
     const containerWidth = gameContainerRef.current?.clientWidth ?? 1200
 
-    const canSpawnSkate =
-      scoreRef.current >= 600 &&
-      skateTimerRef.current <= 0 &&
-      !obstaclesRef.current.some((obs: Obstacle) => obs.type === 'skate')
+    const canSpawnSpray = scoreRef.current >= 600 && !obstaclesRef.current.some((obs: Obstacle) => obs.type === 'spray')
 
-    if (canSpawnSkate && Math.random() < 0.12) {
+    if (canSpawnSpray && Math.random() < 0.12) {
+      const size = 80
       return {
         id: obstacleCounterRef.current++,
         x: containerWidth + 20,
-        y: gameConfig.groundLevel - 22,
-        width: 68,
-        height: 22,
-        type: 'skate',
+        y: gameConfig.groundLevel - size - 8,
+        width: size,
+        height: size,
+        type: 'spray',
         passed: false,
       }
     }
@@ -208,10 +187,10 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
       return {
         id: obstacleCounterRef.current++,
         x: containerWidth + 20,
-        y: gameConfig.groundLevel - 150,
-        width: 110,
-        height: 30,
-        type: 'floating-platform',
+        y: gameConfig.groundLevel - TRAIN_PLATFORM_HEIGHT - 8,
+        width: TRAIN_PLATFORM_WIDTH,
+        height: TRAIN_PLATFORM_HEIGHT,
+        type: 'train',
         passed: false,
       }
     }
@@ -229,13 +208,14 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
     }
 
     if (scoreRef.current >= 280 && Math.random() < 0.22) {
+      const size = 80
       return {
         id: obstacleCounterRef.current++,
         x: containerWidth + 20,
-        y: gameConfig.groundLevel - 72,
-        width: 78,
-        height: 24,
-        type: 'duck-bar',
+        y: gameConfig.groundLevel - size - 8,
+        width: size,
+        height: size,
+        type: 'spray',
         passed: false,
       }
     }
@@ -258,16 +238,15 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
       }
     }
 
-    const cactusHeight = gameConfig.obstacleHeight + Math.floor(Math.random() * 26) - 8
-    const cactusWidth = gameConfig.obstacleWidth + Math.floor(Math.random() * 16) - 4
+    const size = 80
 
     return {
       id: obstacleCounterRef.current++,
       x: containerWidth + 20,
-      y: gameConfig.groundLevel - cactusHeight,
-      width: cactusWidth,
-      height: cactusHeight,
-      type: 'cactus',
+      y: gameConfig.groundLevel - size - 8,
+      width: size,
+      height: size,
+      type: 'spray',
       passed: false,
     }
   }, [gameConfig.groundLevel, gameConfig.obstacleHeight, gameConfig.obstacleWidth])
@@ -322,7 +301,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
 
     setDinosaur((prev) => {
       const onGround = prev.y + prev.height >= gameConfig.groundLevel - 1
-      if (!onGround || prev.isJumping) {
+      if (!onGround || prev.isJumping || prev.isDucking) {
         return prev
       }
 
@@ -436,7 +415,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
 
       let onPlatform = false
       for (const platform of obstaclesRef.current) {
-        if (platform.type !== 'floating-platform') continue
+        if (platform.type !== 'floating-platform' && platform.type !== 'train') continue
 
         const dinoLeft = dinosaurRef.current.x + 6
         const dinoRight = dinosaurRef.current.x + dinosaurRef.current.width - 6
@@ -488,7 +467,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
         const shouldSpawnPath =
           scoreRef.current >= 500 &&
           Math.random() < 0.18 &&
-          !obstaclesRef.current.some((obs) => obs.type === 'floating-platform')
+          !obstaclesRef.current.some((obs) => obs.type === 'floating-platform' || obs.type === 'train')
 
         obstaclesRef.current = shouldSpawnPath
           ? [...obstaclesRef.current, ...createFloatingPath()]
@@ -533,7 +512,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
             const nextPlatform = obstaclesRef.current
               .filter(
                 (candidate) =>
-                  candidate.type === 'floating-platform' &&
+                  (candidate.type === 'floating-platform' || candidate.type === 'train') &&
                   candidate.x + candidate.width > dinosaurRef.current.x
               )
               .sort((a, b) => a.x - b.x)[0]
@@ -559,6 +538,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
               obs.type !== 'skate' &&
               obs.type !== 'trampoline' &&
               obs.type !== 'floating-platform' &&
+              obs.type !== 'train' &&
               obs.type !== 'coin' &&
               obs.type !== 'power-lightning' &&
               obs.type !== 'power-jump'
@@ -579,6 +559,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
             obs.type !== 'power-lightning' &&
             obs.type !== 'power-jump' &&
             obs.type !== 'floating-platform' &&
+            obs.type !== 'train' &&
             obs.type !== 'trampoline' &&
             checkCollision(dinosaurRef.current, obs)
         )
@@ -605,6 +586,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
           obs.type !== 'power-lightning' &&
           obs.type !== 'power-jump' &&
           obs.type !== 'floating-platform' &&
+          obs.type !== 'train' &&
           obs.type !== 'trampoline' &&
           checkCollision(dinosaurRef.current, obs)
       )
@@ -717,7 +699,7 @@ export default function Game({ dinosaurColor, selectedMusic, onGameOver }: GameP
           <div className="bg-layer bg-ground" />
         </div>
 
-        <Dinosaur state={dinosaur} color={dinosaurColor} hasSkate={skateTimeLeftMs > 0} skateFlickering={skateFlickering} />
+        <Dinosaur state={dinosaur} hasSkate={skateTimeLeftMs > 0} skateFlickering={skateFlickering} />
         <Obstacles obstacles={obstacles} />
 
         <HUD

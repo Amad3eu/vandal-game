@@ -45,6 +45,57 @@ yarn dev
 
 O jogo será aberto automaticamente em `http://localhost:3000`
 
+### 2.1 Widget de Feedback + SendGrid
+
+O projeto agora inclui um widget de feedback no canto inferior direito com:
+
+- seleção de tipo (`Problem`, `Idea`, `Other`)
+- campo de mensagem
+- upload opcional de imagem
+- envio para e-mail via SendGrid
+
+Para configurar:
+
+1. Copie o arquivo de exemplo de variáveis de ambiente:
+
+```bash
+cp .env.example .env
+```
+
+2. Preencha no `.env`:
+
+- `SENDGRID_API_KEY`
+- `FEEDBACK_TO_EMAIL`
+- `FEEDBACK_FROM_EMAIL` (domínio remetente validado no SendGrid)
+
+3. Rode API + frontend:
+
+```bash
+npm run dev:full
+```
+
+Obs: se preferir, rode em terminais separados:
+
+```bash
+npm run api
+npm run dev
+```
+
+### 2.2 Deploy Serverless na Vercel
+
+Para produção na Vercel, use a função serverless em [api/feedback.js](api/feedback.js).
+
+- A rota ficará disponível como `/api/feedback` automaticamente.
+- Defina no painel da Vercel as variáveis:
+  - `SENDGRID_API_KEY`
+  - `FEEDBACK_TO_EMAIL`
+  - `FEEDBACK_FROM_EMAIL`
+
+Importante:
+
+- O arquivo [server/feedback-server.mjs](server/feedback-server.mjs) pode continuar no projeto para desenvolvimento local.
+- Em produção na Vercel, quem processa o envio é a função serverless em [api/feedback.js](api/feedback.js), não o servidor Express persistente.
+
 ### 3. Build para Produção
 
 ```bash
