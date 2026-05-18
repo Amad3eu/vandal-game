@@ -107,6 +107,29 @@
   animation: skateGlow 0.9s ease-in-out infinite;
 }
 
+.obstacle-spray {
+  background: transparent;
+}
+
+.spray-sprite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 110%;
+  height: 110%;
+  transform: translate(-50%, -15%);
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.obstacle-spray .spray-sprite,
+.obstacle-cactus .spray-sprite,
+.obstacle-duck-bar .spray-sprite {
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.24));
+}
+
 .obstacle-duck-bar {
   background: transparent;
 }
@@ -138,9 +161,30 @@
   right: 8%;
 }
 
-.obstacle-floating-platform {
+.obstacle-floating-platform,
+.obstacle-train {
   background: transparent;
   animation: platformFloat 1.2s ease-in-out infinite;
+  overflow: visible;
+}
+
+.train-sprite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 110%;
+  height: auto;
+  max-height: 140%;
+  transform: translate(-50%, -10%);
+  object-fit: contain;
+  object-position: center top;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.obstacle-floating-platform .train-sprite,
+.obstacle-train .train-sprite {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.24));
 }
 
 .floating-platform-top {
@@ -224,18 +268,18 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 250%;
-  height: 250%;
+  width: 320%;
+  height: 320%;
   transform: translate(-50%, -50%);
   object-fit: contain;
   image-rendering: pixelated;
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.55));
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.7));
 }
 
 .power-icon-lightning,
 .power-icon-jump {
-  width: 265%;
-  height: 265%;
+  width: 340%;
+  height: 340%;
 }
 
 .power-orb-lightning {

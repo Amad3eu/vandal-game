@@ -7,8 +7,10 @@ export interface Obstacle {
   type:
     | 'cactus'
     | 'bird'
+    | 'spray'
     | 'skate'
     | 'duck-bar'
+    | 'train'
     | 'floating-platform'
     | 'trampoline'
     | 'coin'

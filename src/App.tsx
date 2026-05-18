@@ -1,19 +1,15 @@
 import { useState } from 'react'
 import Game from './components/Game'
 import Menu from './components/Menu'
+import FeedbackWidget from './components/FeedbackWidget'
 import './App.css'
 
 type GameState = 'menu' | 'playing' | 'gameover'
-export type DinoColor = 'verde' | 'azul' | 'laranja' | 'rosa' | 'cinza'
 export type MusicOption = 'none' | 'theme'
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>('menu')
   const [score, setScore] = useState(0)
-  const [dinoColor, setDinoColor] = useState<DinoColor>(() => {
-    const saved = localStorage.getItem('dinoGameColor') as DinoColor | null
-    return saved ?? 'verde'
-  })
   const [selectedMusic, setSelectedMusic] = useState<MusicOption>(() => {
     const saved = localStorage.getItem('dinoGameMusic') as MusicOption | null
     return saved ?? 'theme'
@@ -41,11 +37,6 @@ export default function App() {
     setGameState('menu')
   }
 
-  const handleColorChange = (color: DinoColor) => {
-    setDinoColor(color)
-    localStorage.setItem('dinoGameColor', color)
-  }
-
   const handleMusicChange = (music: MusicOption) => {
     setSelectedMusic(music)
     localStorage.setItem('dinoGameMusic', music)
@@ -56,16 +47,13 @@ export default function App() {
       {gameState === 'menu' && (
         <Menu
           highScore={highScore}
-          selectedColor={dinoColor}
           selectedMusic={selectedMusic}
-          onColorChange={handleColorChange}
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
         />
       )}
       {gameState === 'playing' && (
         <Game
-          dinosaurColor={dinoColor}
           selectedMusic={selectedMusic}
           onGameOver={handleGameOver}
         />
@@ -75,14 +63,13 @@ export default function App() {
           gameOver
           finalScore={score}
           highScore={highScore}
-          selectedColor={dinoColor}
           selectedMusic={selectedMusic}
-          onColorChange={handleColorChange}
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
           onReturnToMenu={handleReturnToMenu}
         />
       )}
+      <FeedbackWidget />
     </div>
   )
 }

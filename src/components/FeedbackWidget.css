@@ -1,0 +1,251 @@
+.feedback-widget {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.feedback-fab {
+  border: none;
+  border-radius: 999px;
+  height: 56px;
+  min-width: 56px;
+  padding: 0 18px;
+  background: linear-gradient(90deg, #6f42db, #8d57ff);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(88, 52, 180, 0.42);
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.2s ease, width 0.2s ease;
+}
+
+.feedback-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(88, 52, 180, 0.52);
+}
+
+.feedback-fab.expanded {
+  padding-right: 20px;
+  padding-left: 16px;
+}
+
+.feedback-fab-icon {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.feedback-fab-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.feedback-panel {
+  width: min(420px, calc(100vw - 24px));
+  background: linear-gradient(180deg, #171922 0%, #11131b 100%);
+  border: 1px solid #2b3040;
+  border-radius: 8px;
+  color: #e9e9ef;
+  padding: 18px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+  animation: feedbackPanelIn 0.2s ease;
+}
+
+.feedback-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.feedback-panel-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback-panel-header.with-back {
+  justify-content: space-between;
+}
+
+.feedback-icon-btn {
+  border: none;
+  color: #aeb3c2;
+  background: transparent;
+  font-size: 1.55rem;
+  cursor: pointer;
+  line-height: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+}
+
+.feedback-panel-header:not(.with-back) .feedback-icon-btn {
+  position: absolute;
+  right: 0;
+}
+
+.feedback-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.feedback-types-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.feedback-type-card {
+  border: 1px solid #2b3040;
+  border-radius: 10px;
+  background: #252833;
+  color: #e9e9ef;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.feedback-type-card:hover {
+  border-color: #5249c8;
+  transform: translateY(-1px);
+}
+
+.feedback-type-emoji {
+  font-size: 1.95rem;
+  line-height: 1;
+}
+
+.feedback-type-label {
+  font-size: 1.05rem;
+}
+
+.feedback-textarea {
+  width: 100%;
+  border: 1px solid #505770;
+  border-radius: 8px;
+  background: #171922;
+  color: #d7dae4;
+  font-size: 1.02rem;
+  padding: 14px;
+  resize: none;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.feedback-textarea::placeholder {
+  color: #9ca3b8;
+}
+
+.feedback-textarea:focus {
+  border-color: #7d61ec;
+  box-shadow: 0 0 0 2px rgba(125, 97, 236, 0.25);
+}
+
+.feedback-form-actions {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.feedback-upload-btn {
+  border-radius: 8px;
+  border: 1px solid #3a3f50;
+  background: #262a35;
+  color: #f0f3fb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.feedback-upload-btn:hover {
+  border-color: #5f6791;
+}
+
+.feedback-upload-btn input {
+  display: none;
+}
+
+.feedback-submit-btn {
+  border: none;
+  border-radius: 8px;
+  background: #5d43a3;
+  color: #fff;
+  font-weight: 500;
+  font-size: 1.02rem;
+  cursor: pointer;
+  min-height: 50px;
+}
+
+.feedback-submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.feedback-help,
+.feedback-status {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.feedback-help {
+  color: #aeb3c2;
+  margin-bottom: 8px;
+}
+
+.feedback-status {
+  margin-bottom: 10px;
+}
+
+.feedback-status.success {
+  color: #6fe4a9;
+}
+
+.feedback-status.error {
+  color: #ff9ea5;
+}
+
+@keyframes feedbackPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedback-widget {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .feedback-panel {
+    width: min(420px, calc(100vw - 12px));
+    padding: 14px;
+  }
+
+  .feedback-types-grid {
+    grid-template-columns: 1fr;
+  }
+}

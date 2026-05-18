@@ -6,8 +6,9 @@ export function usePhysics(config: GameConfig) {
     (dino: DinosaurState, deltaFactor = 1): DinosaurState => {
       let velocityY = dino.velocityY
 
-      // Apply gravity
-      velocityY += config.gravity * deltaFactor
+      // Apply dynamic gravity: softer ascent, faster fall.
+      const gravityScale = velocityY < 0 ? 0.72 : 1.22
+      velocityY += config.gravity * gravityScale * deltaFactor
 
       // Update position
       let newY = dino.y + velocityY * deltaFactor
@@ -58,6 +59,8 @@ export function usePhysics(config: GameConfig) {
 
     const obstacleInsetX = obstacle.type === 'bird'
       ? 8
+      : obstacle.type === 'spray'
+      ? 12
       : obstacle.type === 'skate'
       ? 10
       : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'
@@ -73,6 +76,8 @@ export function usePhysics(config: GameConfig) {
       : 4
     const obstacleInsetY = obstacle.type === 'bird'
       ? 6
+      : obstacle.type === 'spray'
+      ? 12
       : obstacle.type === 'skate'
       ? 8
       : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'

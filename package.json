@@ -4,13 +4,18 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "api": "node server/feedback-server.mjs",
     "dev": "vite",
+    "dev:full": "sh -c 'npm run api & npm run dev'",
     "build": "npm run type-check && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

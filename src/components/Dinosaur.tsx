@@ -1,60 +1,78 @@
 import { DinosaurState } from '../types/game'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { DinoColor } from '../App'
-import runSprite1 from '../assets/sprites/player/run-1.svg'
-import runSprite2 from '../assets/sprites/player/run-2.svg'
-import runSprite3 from '../assets/sprites/player/run-3.svg'
-import runSprite4 from '../assets/sprites/player/run-4.svg'
-import runSprite5 from '../assets/sprites/player/run-5.svg'
-import runSprite6 from '../assets/sprites/player/run-6.svg'
-import runSprite7 from '../assets/sprites/player/run-7.svg'
-import runSprite8 from '../assets/sprites/player/run-8.svg'
-import jumpSprite1 from '../assets/sprites/player/jump-1.svg'
-import jumpSprite2 from '../assets/sprites/player/jump-2.svg'
-import jumpSprite3 from '../assets/sprites/player/jump-3.svg'
-import jumpSprite4 from '../assets/sprites/player/jump-4.svg'
-import duckSprite from '../assets/sprites/player/duck.svg'
+import walkSprite1 from '../assets/sprites/walk/walk-1.png'
+import walkSprite2 from '../assets/sprites/walk/walk-2.png'
+import walkSprite3 from '../assets/sprites/walk/walk-3.png'
+import walkSprite4 from '../assets/sprites/walk/walk-4.png'
+import jumpSprite1 from '../assets/sprites/jump/jump-1.png'
+import jumpSprite2 from '../assets/sprites/jump/jump-2.png'
+import jumpSprite3 from '../assets/sprites/jump/jump-3.png'
+import jumpSprite4 from '../assets/sprites/jump/jump-4.png'
+import jumpSprite5 from '../assets/sprites/jump/jump-5.png'
+import jumpSprite6 from '../assets/sprites/jump/jump-6.png'
+import jumpSprite7 from '../assets/sprites/jump/jump-7.png'
+import duckFrame1 from '../assets/sprites/Abaixa/Abaixa1.png'
+import duckFrame2 from '../assets/sprites/Abaixa/Abaixa2.png'
+import duckFrame3 from '../assets/sprites/Abaixa/Abaixa3.png'
+import duckFrame4 from '../assets/sprites/Abaixa/Abaixa4.png'
+import duckFrame5 from '../assets/sprites/Abaixa/Abaixa5.png'
+import duckFrame6 from '../assets/sprites/Abaixa/Abaixa6.png'
+import duckFrame7 from '../assets/sprites/Abaixa/Abaixa7.png'
+import duckFrame8 from '../assets/sprites/Abaixa/Abaixa8.png'
+import duckFrame9 from '../assets/sprites/Abaixa/Abaixa9.png'
 import './Dinosaur.css'
-
-const playerColorFilterMap: Record<DinoColor, string> = {
-  verde: 'hue-rotate(90deg) saturate(1.25) brightness(0.98)',
-  azul: 'hue-rotate(165deg) saturate(1.35) brightness(0.95)',
-  laranja: 'hue-rotate(18deg) saturate(1.35) brightness(1.02)',
-  rosa: 'hue-rotate(300deg) saturate(1.4) brightness(1)',
-  cinza: 'grayscale(1) contrast(1.1)',
-}
 
 interface DinosaurProps {
   state: DinosaurState
-  color: DinoColor
   hasSkate?: boolean
   skateFlickering?: boolean
 }
 
-export default function Dinosaur({ state, color, hasSkate = false, skateFlickering = false }: DinosaurProps) {
-  const playerFilter = playerColorFilterMap[color]
+export default function Dinosaur({ state, hasSkate = false, skateFlickering = false }: DinosaurProps) {
   const runFrames = useMemo(
     () => [
-      runSprite1,
-      runSprite2,
-      runSprite3,
-      runSprite4,
-      runSprite5,
-      runSprite6,
-      runSprite7,
-      runSprite8,
+      walkSprite1,
+      walkSprite2,
+      walkSprite3,
+      walkSprite4,
+      walkSprite3,
+      walkSprite2,
     ],
     []
   )
   const [runFrameIndex, setRunFrameIndex] = useState(0)
   const [jumpFrameIndex, setJumpFrameIndex] = useState(0)
+  const [duckFrameIndex, setDuckFrameIndex] = useState(0)
 
   const isJumping = Boolean(state.isJumping)
   const isDucking = Boolean(state.isDucking)
-  const isRunning = !isJumping && !isDucking && !hasSkate
+  const isGrounded = !isJumping && !isDucking && !hasSkate
+  const isRunning = isGrounded
   const jumpFrames = useMemo(
-    () => [jumpSprite1, jumpSprite2, jumpSprite3, jumpSprite4],
+    () => [
+      jumpSprite1,
+      jumpSprite2,
+      jumpSprite3,
+      jumpSprite4,
+      jumpSprite5,
+      jumpSprite6,
+      jumpSprite7,
+    ],
+    []
+  )
+  const duckFrames = useMemo(
+    () => [
+      duckFrame1,
+      duckFrame2,
+      duckFrame3,
+      duckFrame4,
+      duckFrame5,
+      duckFrame6,
+      duckFrame7,
+      duckFrame8,
+      duckFrame9,
+    ],
     []
   )
 
@@ -80,13 +98,13 @@ export default function Dinosaur({ state, color, hasSkate = false, skateFlickeri
     }
 
     let timeoutId = 0
-    const delays = [80, 120, 80, 80]
+    const delays = [70, 70, 70, 70, 70, 70, 90]
 
     const tick = (index: number) => {
       setJumpFrameIndex(index)
       timeoutId = window.setTimeout(() => {
         tick((index + 1) % jumpFrames.length)
-      }, delays[index] ?? 80)
+      }, delays[index] ?? 70)
     }
 
     tick(0)
@@ -96,10 +114,25 @@ export default function Dinosaur({ state, color, hasSkate = false, skateFlickeri
     }
   }, [isJumping, jumpFrames.length])
 
+  useEffect(() => {
+    if (!isDucking) {
+      setDuckFrameIndex(0)
+      return
+    }
+
+    const frameTimer = window.setInterval(() => {
+      setDuckFrameIndex((prev) => (prev + 1) % duckFrames.length)
+    }, 90)
+
+    return () => {
+      window.clearInterval(frameTimer)
+    }
+  }, [isDucking, duckFrames.length])
+
+  const visualOffset = isGrounded ? 8 : 0
   const dinosaurStyle = {
-    '--player-filter': playerFilter,
     left: `${state.x}px`,
-    top: `${state.y}px`,
+    top: `${state.y + visualOffset}px`,
     width: `${state.width}px`,
     height: `${state.height}px`,
   } as CSSProperties
@@ -122,7 +155,7 @@ export default function Dinosaur({ state, color, hasSkate = false, skateFlickeri
         draggable={false}
       />
       <img
-        src={duckSprite}
+        src={duckFrames[duckFrameIndex]}
         alt="Personagem agachado"
         className={`state-character frame-duck ${isDucking ? 'active' : ''}`}
         draggable={false}

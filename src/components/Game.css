@@ -4,23 +4,24 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+  background: #ffffff;
 }
 
 .game-wrapper.is-night {
-  background: linear-gradient(180deg, #091427 0%, #18254a 100%);
+  background: #ffffff;
 }
 
 .game-container {
   position: relative;
   width: 100%;
-  max-width: 1200px;
-  height: 700px;
+  max-width: none;
+  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
-  border: 3px solid #667eea;
-  border-radius: 15px;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 .game-container.is-night {
@@ -166,15 +167,15 @@
 
 @media (max-width: 1024px) {
   .game-container {
-    max-width: 95%;
-    height: 600px;
+    max-width: none;
+    height: 100vh;
   }
 }
 
 @media (max-width: 768px) {
   .game-container {
-    max-width: 98%;
-    height: 500px;
+    max-width: none;
+    height: 100vh;
   }
 
   .game-over-message {
