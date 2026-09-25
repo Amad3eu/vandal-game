@@ -10,6 +10,8 @@ interface MenuProps {
   onMusicChange: (music: MusicOption) => void
   onStart: () => void
   onReturnToMenu?: () => void
+  blackbookCount?: number
+  onOpenBlackbook?: () => void
 }
 
 export default function Menu({
@@ -19,7 +21,9 @@ export default function Menu({
   selectedMusic,
   onMusicChange,
   onStart,
-  onReturnToMenu
+  onReturnToMenu,
+  blackbookCount = 0,
+  onOpenBlackbook,
 }: MenuProps) {
   const [isInfoOpen, setIsInfoOpen] = useState(false)
 
@@ -86,6 +90,11 @@ export default function Menu({
           <button className="btn btn-primary" onClick={onStart}>
             {gameOver ? 'Jogar Novamente' : 'Iniciar Jogo'}
           </button>
+          {blackbookCount > 0 && onOpenBlackbook && (
+            <button className="btn btn-blackbook" onClick={onOpenBlackbook}>
+              🎨 Meu Blackbook ({blackbookCount})
+            </button>
+          )}
           {gameOver && onReturnToMenu && (
             <button className="btn btn-secondary" onClick={onReturnToMenu}>
               Menu Principal

@@ -113,3 +113,53 @@
     width: 80px;
   }
 }
+
+.signatures-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.signature-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 2px solid;
+  background: transparent;
+  color: #333;
+  transition: all 0.3s ease;
+}
+
+.signature-badge.collected {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.signature-badge:not(.collected) {
+  opacity: 0.4;
+  color: #999;
+}
+
+.btn-blackbook {
+  padding: 8px 16px;
+  border: 2px solid #667eea;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  color: #333;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.btn-blackbook:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  border-color: #764ba2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}

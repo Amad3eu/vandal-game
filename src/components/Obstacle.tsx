@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Obstacle } from "../types/game";
+import { Obstacle, GraffitiArtist } from "../types/game";
 import powerJumpIcon from "../assets/sprites/powerups/power-jump.svg";
 import powerLightningIcon from "../assets/sprites/powerups/power-lightning.svg";
 import sprayFrame1 from "../assets/sprites/Spray/Sprite-0004.png";
@@ -86,6 +86,27 @@ function TrainSprite() {
   );
 }
 
+function GraffitiArtistSprite({ artist }: { artist?: GraffitiArtist }) {
+  const colors: Record<GraffitiArtist, string> = {
+    remo: "#FF6B6B",
+    pixo: "#4ECDC4",
+    nina: "#FFE66D",
+  };
+
+  const color = artist ? colors[artist] : "#FF6B6B";
+
+  return (
+    <div className="graffiti-artist">
+      <div className="artist-head" style={{ backgroundColor: color }} />
+      <div className="artist-body" style={{ backgroundColor: color }} />
+      <div className="artist-arm artist-arm-left" style={{ backgroundColor: color }} />
+      <div className="artist-arm artist-arm-right" style={{ backgroundColor: color }} />
+      <div className="artist-leg artist-leg-left" style={{ backgroundColor: color }} />
+      <div className="artist-leg artist-leg-right" style={{ backgroundColor: color }} />
+    </div>
+  );
+}
+
 export default function Obstacles({ obstacles }: ObstaclesProps) {
   return (
     <div className="obstacles">
@@ -152,6 +173,21 @@ export default function Obstacles({ obstacles }: ObstaclesProps) {
           ) : obstacle.type === "spray" ? (
             <>
               <SpraySprite />
+            </>
+          ) : obstacle.type === "graffiti-artist" ? (
+            <>
+              <GraffitiArtistSprite artist={obstacle.graffitiArtist} />
+            </>
+          ) : obstacle.type === "building" ? (
+            <>
+              <div className="building-face" />
+              <div className="building-roof" />
+              <div className="building-tag" />
+              <div className="building-windows">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <span key={i} className="building-window" />
+                ))}
+              </div>
             </>
           ) : (
             <>

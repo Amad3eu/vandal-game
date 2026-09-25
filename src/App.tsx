@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Game from './components/Game'
 import Menu from './components/Menu'
+import Blackbook from './components/Blackbook'
 import FeedbackWidget from './components/FeedbackWidget'
+import { GraffitiArt } from './types/game'
 import './App.css'
 
 type GameState = 'menu' | 'playing' | 'gameover'
@@ -18,6 +20,11 @@ export default function App() {
     const saved = localStorage.getItem('dinoGameHighScore')
     return saved ? parseInt(saved) : 0
   })
+  const [blackbook, setBlackbook] = useState<GraffitiArt[]>(() => {
+    const saved = localStorage.getItem('dinoGameBlackbook')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [showBlackbook, setShowBlackbook] = useState(false)
 
   const handleStartGame = () => {
     setScore(0)
@@ -42,6 +49,16 @@ export default function App() {
     localStorage.setItem('dinoGameMusic', music)
   }
 
+  // Sincronizar blackbook quando retornar ao menu
+  useEffect(() => {
+    if (gameState === 'menu' || gameState === 'gameover') {
+      const saved = localStorage.getItem('dinoGameBlackbook')
+      if (saved) {
+        setBlackbook(JSON.parse(saved))
+      }
+    }
+  }, [gameState])
+
   return (
     <div className="app">
       {gameState === 'menu' && (
@@ -50,6 +67,8 @@ export default function App() {
           selectedMusic={selectedMusic}
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
+          blackbookCount={blackbook.length}
+          onOpenBlackbook={() => setShowBlackbook(true)}
         />
       )}
       {gameState === 'playing' && (
@@ -67,7 +86,12 @@ export default function App() {
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
           onReturnToMenu={handleReturnToMenu}
+          blackbookCount={blackbook.length}
+          onOpenBlackbook={() => setShowBlackbook(true)}
         />
+      )}
+      {showBlackbook && (
+        <Blackbook arts={blackbook} onClose={() => setShowBlackbook(false)} />
       )}
       <FeedbackWidget />
     </div>

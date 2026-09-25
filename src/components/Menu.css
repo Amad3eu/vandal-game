@@ -280,6 +280,20 @@
   transform: translateY(-2px);
 }
 
+.btn-blackbook {
+  background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%);
+  color: white;
+  border: 2px solid #a78bfa;
+  font-weight: 700;
+}
+
+.btn-blackbook:hover {
+  background: linear-gradient(135deg, #9670f3 0%, #b06ef0 100%);
+  border-color: #9670f3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(167, 139, 250, 0.4);
+}
+
 .menu-instructions {
   background: #f5f5f5;
   padding: 20px;

@@ -167,3 +167,34 @@
     transform: translateX(1px) skewX(3deg);
   }
 }
+
+/* ---- Dash / esquiva (Hollow Knight) ---- */
+.dinosaur.dashing {
+  filter: drop-shadow(0 0 10px rgba(80, 220, 255, 0.85)) brightness(1.12);
+}
+
+.dash-trail {
+  position: absolute;
+  top: 12%;
+  left: 8%;
+  width: 84%;
+  height: 76%;
+  border-radius: 18px;
+  background: linear-gradient(90deg, rgba(80, 220, 255, 0.55), rgba(80, 220, 255, 0));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dash-trail-1 { transform: translateX(-16px) scaleX(0.9); opacity: 0.55; }
+.dash-trail-2 { transform: translateX(-34px) scaleX(0.8); opacity: 0.35; }
+.dash-trail-3 { transform: translateX(-54px) scaleX(0.7); opacity: 0.18; }
+
+/* ---- Wall-cling (Hollow Knight) ---- */
+.dinosaur.wall-clinging {
+  filter: drop-shadow(-6px 0 8px rgba(0, 0, 0, 0.35));
+}
+
+.dinosaur.wall-clinging .state-character,
+.dinosaur.wall-clinging .run-frame {
+  transform: scaleX(-1) rotate(-4deg);
+}
