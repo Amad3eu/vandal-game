@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { GraffitiArtist, GraffitiArtistInfo } from '../types/game'
+import { GraffitiArtist } from '../types/game'
+import { ARTIST_INFO } from '../data/graffitiArtists'
 import './GraffitiDialog.css'
 
 interface GraffitiDialogProps {
@@ -7,24 +8,6 @@ interface GraffitiDialogProps {
   onAccept: () => void
   onReject: () => void
   artistSignatureImage: string
-}
-
-const ARTIST_INFO: Record<GraffitiArtist, GraffitiArtistInfo> = {
-  remo: {
-    name: 'Remo',
-    color: '#FF6B6B',
-    description: 'Yo! Eu sou o Remo, mestre das cores quentes. Meu estilo é agressivo e vibrante!',
-  },
-  pixo: {
-    name: 'Pixo',
-    color: '#4ECDC4',
-    description: 'Opa! Sou o Pixo, artista das formas clean. Meu traço é preciso e geométrico.',
-  },
-  nina: {
-    name: 'Nina',
-    color: '#FFE66D',
-    description: 'E aí? Eu sou a Nina, rainha dos detalhes. Minha arte é pura criatividade!',
-  },
 }
 
 export default function GraffitiDialog({

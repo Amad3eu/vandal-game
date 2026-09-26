@@ -110,6 +110,24 @@ yarn build
 
 Os arquivos otimizados será gerados na pasta `dist/`
 
+### 4. App nativo (Expo)
+
+A versão para Android e iOS fica em `mobile/` (Expo SDK 57 + React Native). Ela usa a mesma engine do site (`src/game`), os mesmos modos (`src/data/gameModes.ts`) e as mesmas chaves de recorde e moedas.
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+Abra o app **Expo Go** no celular e escaneie o QR code (celular e computador na mesma rede). Também dá para rodar no navegador com `npm run web`.
+
+- O Metro do app observa a pasta `../src` (`mobile/metro.config.js`), então mudanças na engine valem para os dois.
+- Os sprites do app são cópias ampliadas 4x (pixel art nítida) dos arquivos em `src/assets/sprites`. Depois de mexer neles, rode `npm run sprites` dentro de `mobile/` (precisa de Python 3 com Pillow).
+- `npm run typecheck` confere os tipos do app.
+
+Ainda não tem no app: o canvas para desenhar o graffiti e a tela do blackbook (as assinaturas aceitas já ficam salvas no aparelho). Os ícones e a splash ainda são os padrões do Expo.
+
 ## 🎮 Como Jogar
 
 No menu, escolha o **Modo de Jogo** e clique em "Iniciar Jogo". Cada modo guarda o seu próprio recorde.
@@ -174,6 +192,14 @@ src/
 ├── App.css
 ├── main.tsx               # Ponto de entrada
 └── index.css              # Estilos globais
+
+mobile/                    # App Expo (React Native) que reaproveita src/game e src/data
+├── App.tsx                # Menu, música e recordes
+├── src/screens/           # Menu e tela do jogo
+├── src/components/        # Cenário, personagem, obstáculos, HUD e botões de toque
+├── src/input.ts           # Multi-toque e posição dos botões
+├── src/storage.ts         # Recordes, moedas e blackbook (AsyncStorage)
+└── scripts/build-sprites.py
 ```
 
 ## 🛠️ Tecnologias Utilizadas
