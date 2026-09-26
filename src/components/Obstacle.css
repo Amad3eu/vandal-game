@@ -168,14 +168,16 @@
   overflow: visible;
 }
 
+/* The roof drawn in the sprite (10% down the image) sits where the player's feet are drawn
+   on the platform (8px below its top), so riding the train looks grounded. */
 .train-sprite {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 0;
   width: 110%;
   height: auto;
   max-height: 140%;
-  transform: translate(-50%, -10%);
+  transform: translate(-50%, -3px);
   object-fit: contain;
   object-position: center top;
   image-rendering: pixelated;
