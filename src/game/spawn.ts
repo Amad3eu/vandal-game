@@ -3,11 +3,13 @@ import { FREE_TUNING, RUNNER_TUNING } from '../data/gameModes'
 import type { GameState } from './engine'
 import {
   BIRD_ALTITUDE,
+  BUILDING_EXTRA_AIRTIME_FRAMES,
   BUILDING_WIDTH,
   FRAME_TIME,
   POWERUP_SIZE,
   TRAIN_PLATFORM_HEIGHT,
   TRAIN_PLATFORM_WIDTH,
+  TRAMPOLINE_EXTRA_AIRTIME_FRAMES,
 } from './config'
 
 /**
@@ -28,6 +30,19 @@ export function getSpawnGap(state: GameState, speed: number) {
   const minMs = lerp(RUNNER_TUNING.minGapMs)
   const maxMs = lerp(RUNNER_TUNING.maxGapMs)
   return speed * ((minMs + state.random() * (maxMs - minMs)) / FRAME_TIME)
+}
+
+/**
+ * Extra distance before the next spawn after obstacles the player stays on or above for
+ * longer than a normal jump: riding a single train to its end, a wall-jump over a building,
+ * a trampoline bounce. The free mode only needs the train's length: the player sets the pace.
+ */
+export function spacingAfter(state: GameState, obstacle: Obstacle, speed: number) {
+  if (obstacle.type === 'train') return obstacle.width
+  if (state.mode !== 'runner') return 0
+  if (obstacle.type === 'building') return obstacle.width + speed * BUILDING_EXTRA_AIRTIME_FRAMES
+  if (obstacle.type === 'trampoline') return speed * TRAMPOLINE_EXTRA_AIRTIME_FRAMES
+  return 0
 }
 
 /** A line of 2–4 trains to ride on, with coins on top and a power-up. */

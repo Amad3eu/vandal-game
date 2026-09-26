@@ -42,17 +42,17 @@ import {
   OBSTACLE_PASSED_SCORE,
   PHASE_2_SCORE,
   PHASE_3_SCORE,
+  ROOF_STEP_TOLERANCE,
   SKATE_DURATION_MS,
   SKATE_FLICKER_MS,
   SKATE_SPEED_MULTIPLIER,
   TRAMPOLINE_BOOST,
   WALL_CLING_MAX_MS,
   WALL_CLING_SLIDE,
-  WALL_JUMP_HOP,
   WALL_JUMP_POWER_MULT,
 } from './config'
 import { approach, checkCollision, moveAgainstBuildings, updatePlayerPosition } from './physics'
-import { createFloatingPath, createObstacle, getSpawnGap } from './spawn'
+import { createFloatingPath, createObstacle, getSpawnGap, spacingAfter } from './spawn'
 
 export interface GameState {
   mode: GameMode
@@ -92,6 +92,8 @@ export interface GameState {
   wallCling: boolean
   wallClingMs: number
   wallSide: 1 | -1 // side of the wall being gripped
+  /** Runner: the building the player is riding (gripping it or wall-jumping up its face). */
+  wallId: number | null
   grounded: boolean // on the ground or on a platform, as of the last step
   jumpHeld: boolean
   jumpCutArmed: boolean
@@ -194,6 +196,7 @@ export function createGameState({
     wallCling: false,
     wallClingMs: 0,
     wallSide: 1,
+    wallId: null,
     grounded: true,
     jumpHeld: false,
     jumpCutArmed: false,
@@ -268,11 +271,8 @@ export function pressJump(state: GameState) {
       ...launchJump(state, state.player, jumpPower * WALL_JUMP_POWER_MULT * jumpPowerMultiplier),
       isWallClinging: false,
     }
-    if (state.mode === 'free') {
-      wallJumped.velocityX = -state.wallSide * FREE_TUNING.wallKick
-    } else {
-      state.dashLunge = Math.max(state.dashLunge, WALL_JUMP_HOP) // hop forward, over the ledge
-    }
+    // The runner keeps riding the wall (wallId) while rising, until the feet clear the roof.
+    if (state.mode === 'free') wallJumped.velocityX = -state.wallSide * FREE_TUNING.wallKick
     state.player = wallJumped
     state.wallCling = false
     state.wallClingMs = 0
@@ -423,10 +423,12 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   }
 
   if (mode === 'runner') {
-    // Horizontal lunge (dash / wall-jump hop) eases back to the base lane.
+    // Offset from the base lane (a dash lunge, or where a wall left the player) eases back.
     state.dashLunge *= DASH_LUNGE_DECAY
-    if (state.dashLunge < 0.6) state.dashLunge = 0
-    player = { ...player, x: BASE_X + state.dashLunge }
+    if (Math.abs(state.dashLunge) < 0.6) state.dashLunge = 0
+    // A gripped wall carries the player along as it scrolls, so there is time to wall-jump.
+    const ridden = state.wallId === null ? undefined : state.obstacles.find((obs) => obs.id === state.wallId)
+    player = { ...player, x: ridden ? ridden.x - player.width + 2 : BASE_X + state.dashLunge }
   }
 
   let onPlatform = false
@@ -478,12 +480,15 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
       const dinoBottom = player.y + player.height
       const dinoTop = player.y
       const nearLeftFace = dinoRight >= wall.x - 4 && dinoRight <= wall.x + 24
-      const withinWallBand = dinoBottom > wall.y + 12 && dinoTop < wall.y + wall.height - 4
+      // Same tolerance as landing on the roof, so letting go of the wall near the top always
+      // leaves the player close enough to land on it.
+      const withinWallBand = dinoBottom > wall.y + ROOF_STEP_TOLERANCE && dinoTop < wall.y + wall.height - 4
       if (airborne && nearLeftFace && withinWallBand) {
         touchingWall = true
         if (state.wallClingMs < WALL_CLING_MAX_MS) {
           state.wallCling = true
           state.wallSide = 1
+          state.wallId = wall.id
           player = {
             ...player,
             x: wall.x - player.width + 2,
@@ -491,6 +496,8 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
             isJumping: true,
             isWallClinging: true,
           }
+          // Once the wall lets go (feet above the roof, or too long gripping), ease back to the lane.
+          state.dashLunge = player.x - BASE_X
           state.jumpsUsed = 0
         }
         break
@@ -500,6 +507,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   if (state.wallCling) {
     state.wallClingMs += deltaMs
   } else {
+    state.wallId = null
     if (!touchingWall) state.wallClingMs = 0
     if (player.isWallClinging) player = { ...player, isWallClinging: false }
   }
@@ -580,7 +588,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
         obstacle.x += ((obstacle.x - cameraX) * FREE_TUNING.birdDrift) / FREE_TUNING.walkSpeed
       }
       state.obstacles = [...state.obstacles, obstacle]
-      state.nextSpawnGap = gap
+      state.nextSpawnGap = gap + spacingAfter(state, obstacle, effectiveSpeed)
     }
     state.spawnDistance = 0
   }

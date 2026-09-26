@@ -47,6 +47,10 @@ export const GRAFFITI_SIGNATURE_SCORE = 150
 export const POWERUP_SIZE = 84
 export const TRAIN_PLATFORM_WIDTH = 240
 export const TRAIN_PLATFORM_HEIGHT = 80
+// Runner: extra frames of room after obstacles that keep the player in the air longer than a
+// normal jump (a wall-jump over a building, a trampoline bounce).
+export const BUILDING_EXTRA_AIRTIME_FRAMES = 40
+export const TRAMPOLINE_EXTRA_AIRTIME_FRAMES = 30
 
 // --- Phase system (Fase 1 Rua / Fase 2 Metrô / Fase 3 Telhados) ---
 export const PHASE_2_SCORE = 1200
@@ -74,7 +78,6 @@ export const GRIND_TICK_SCORE = 12
 export const WALL_CLING_SLIDE = 1.1 // gentle downward slide while gripping a wall
 export const WALL_JUMP_POWER_MULT = 1.16
 export const WALL_CLING_MAX_MS = 520
-export const WALL_JUMP_HOP = 74 // runner: forward hop over the ledge
 export const BUILDING_WIDTH = 78
 export const WALL_CONTACT_INSET_X = 14
 export const ROOF_STEP_TOLERANCE = 8 // matches the platform landing tolerance
