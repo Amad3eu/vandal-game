@@ -27,9 +27,22 @@ interface DinosaurProps {
   state: DinosaurState
   hasSkate?: boolean
   skateFlickering?: boolean
+  isDashing?: boolean
+  isWallClinging?: boolean
+  facing?: 1 | -1
+  /** False while standing still in the free mode: freezes the walk cycle. */
+  isMoving?: boolean
 }
 
-export default function Dinosaur({ state, hasSkate = false, skateFlickering = false }: DinosaurProps) {
+export default function Dinosaur({
+  state,
+  hasSkate = false,
+  skateFlickering = false,
+  isDashing = false,
+  isWallClinging = false,
+  facing = 1,
+  isMoving = true,
+}: DinosaurProps) {
   const runFrames = useMemo(
     () => [
       walkSprite1,
@@ -48,7 +61,7 @@ export default function Dinosaur({ state, hasSkate = false, skateFlickering = fa
   const isJumping = Boolean(state.isJumping)
   const isDucking = Boolean(state.isDucking)
   const isGrounded = !isJumping && !isDucking && !hasSkate
-  const isRunning = isGrounded
+  const isRunning = isGrounded && isMoving
   const jumpFrames = useMemo(
     () => [
       jumpSprite1,
@@ -139,9 +152,16 @@ export default function Dinosaur({ state, hasSkate = false, skateFlickering = fa
 
   return (
     <div
-      className={`dinosaur ${isJumping ? 'jumping' : 'running'} ${isDucking ? 'ducking' : ''} ${hasSkate ? 'has-skate' : ''} ${skateFlickering ? 'skate-flickering' : ''}`}
+      className={`dinosaur ${isJumping ? 'jumping' : 'running'} ${isDucking ? 'ducking' : ''} ${hasSkate ? 'has-skate' : ''} ${skateFlickering ? 'skate-flickering' : ''} ${isDashing ? 'dashing' : ''} ${isWallClinging ? 'wall-clinging' : ''} ${facing === -1 ? 'facing-left' : ''} ${isMoving ? '' : 'idle'}`}
       style={dinosaurStyle}
     >
+      {isDashing && (
+        <>
+          <span className="dash-trail dash-trail-1" aria-hidden="true" />
+          <span className="dash-trail dash-trail-2" aria-hidden="true" />
+          <span className="dash-trail dash-trail-3" aria-hidden="true" />
+        </>
+      )}
       <img
         src={runFrames[runFrameIndex]}
         alt="Personagem correndo"

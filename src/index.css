@@ -21,3 +21,18 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Show either the keyboard or the touch version of instructions. */
+.only-touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .only-touch {
+    display: revert;
+  }
+
+  .only-keyboard {
+    display: none;
+  }
+}

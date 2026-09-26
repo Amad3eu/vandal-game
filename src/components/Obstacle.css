@@ -168,14 +168,16 @@
   overflow: visible;
 }
 
+/* The roof drawn in the sprite (10% down the image) sits where the player's feet are drawn
+   on the platform (8px below its top), so riding the train looks grounded. */
 .train-sprite {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 0;
   width: 110%;
   height: auto;
   max-height: 140%;
-  transform: translate(-50%, -10%);
+  transform: translate(-50%, -3px);
   object-fit: contain;
   object-position: center top;
   image-rendering: pixelated;
@@ -442,8 +444,149 @@
   }
 }
 
+.obstacle-graffiti-artist {
+  background: transparent;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  animation: graffitiPulse 1.2s ease-in-out infinite;
+}
+
+.graffiti-artist {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.artist-head {
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-body {
+  position: absolute;
+  width: 20px;
+  height: 24px;
+  border-radius: 3px;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-arm {
+  position: absolute;
+  width: 12px;
+  height: 18px;
+  border-radius: 50%;
+  top: 36px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-arm-left {
+  left: 12px;
+  transform: rotate(-30deg);
+}
+
+.artist-arm-right {
+  right: 12px;
+  transform: rotate(30deg);
+}
+
+.artist-leg {
+  position: absolute;
+  width: 10px;
+  height: 16px;
+  border-radius: 3px;
+  top: 54px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-leg-left {
+  left: 18px;
+}
+
+.artist-leg-right {
+  right: 18px;
+}
+
+@keyframes graffitiPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0.1));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.2));
+  }
+}
+
 @media (max-width: 768px) {
   .obstacle {
     border-radius: 3px;
   }
+}
+
+/* ---- Building / prédio (Fase 3 - verticalidade) ---- */
+.obstacle-building {
+  overflow: visible;
+}
+
+.building-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(160deg, #2b2f45 0%, #1b1e2e 60%, #14162200 100%),
+    repeating-linear-gradient(180deg, #232741 0 22px, #1e2137 22px 24px);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+.building-roof {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  right: -4px;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #3d4370, #575ea0, #3d4370);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.building-tag {
+  position: absolute;
+  left: 8px;
+  bottom: 14px;
+  width: calc(100% - 16px);
+  height: 30px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #ff4d9d, #ffd23f);
+  clip-path: polygon(0 30%, 12% 0, 30% 40%, 50% 5%, 68% 45%, 88% 8%, 100% 35%, 92% 100%, 8% 100%);
+  opacity: 0.92;
+}
+
+.building-windows {
+  position: absolute;
+  inset: 14px 10px 52px 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 10px;
+  align-content: start;
+}
+
+.building-window {
+  height: 14px;
+  border-radius: 2px;
+  background: radial-gradient(circle at 40% 35%, #ffe89b, #d89a2e);
+  box-shadow: 0 0 6px rgba(255, 210, 120, 0.5);
+  opacity: 0.85;
 }

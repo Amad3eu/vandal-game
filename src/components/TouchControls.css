@@ -1,0 +1,117 @@
+/* On-screen buttons only exist on touch screens; with a mouse/keyboard they stay hidden. */
+.touch-controls {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .touch-controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    pointer-events: none; /* taps between the buttons still reach the game (tap to jump) */
+  }
+}
+
+.touch-cluster {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.touch-button {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.5);
+  color: #fff;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease, background 0.08s ease;
+}
+
+.touch-button[data-pressed] {
+  transform: scale(0.92);
+  background: rgba(102, 126, 234, 0.85);
+}
+
+.touch-button-jump {
+  width: 80px;
+  height: 80px;
+  background: rgba(102, 126, 234, 0.55);
+}
+
+.touch-button-dash {
+  background: rgba(245, 158, 11, 0.55);
+}
+
+.touch-icon,
+.touch-icon-filled {
+  width: 30px;
+  height: 30px;
+}
+
+.touch-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.touch-icon-filled {
+  fill: currentColor;
+}
+
+/* Portrait phones don't fit five buttons in a row: stack the actions in a triangle
+   (dash above jump, duck beside it) so each thumb has its own group. */
+@media (orientation: portrait) {
+  .touch-cluster-actions {
+    display: grid;
+    grid-template-areas:
+      '.    dash'
+      'down jump';
+    align-items: end;
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .touch-button-dash {
+    grid-area: dash;
+  }
+
+  .touch-button-down {
+    grid-area: down;
+  }
+
+  .touch-button-jump {
+    grid-area: jump;
+  }
+}
+
+/* Landscape phones: a bit smaller so the buttons stay on the floor strip. */
+@media (max-height: 420px) {
+  .touch-button {
+    width: 56px;
+    height: 56px;
+  }
+
+  .touch-button-jump {
+    width: 68px;
+    height: 68px;
+  }
+}

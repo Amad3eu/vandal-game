@@ -112,9 +112,37 @@ Os arquivos otimizados será gerados na pasta `dist/`
 
 ## 🎮 Como Jogar
 
-- **Iniciar**: Clique em "Start Game" no menu
-- **Pular**: Pressione `ESPAÇO` ou `SETA PARA CIMA` (desktop) ou `CLIQUE/TAP` (mobile)
-- **Objetivo**: Desvie dos obstáculos o máximo de tempo possível para ganhar pontos
+No menu, escolha o **Modo de Jogo** e clique em "Iniciar Jogo". Cada modo guarda o seu próprio recorde.
+
+**Objetivo**: desvie dos obstáculos o máximo possível para ganhar pontos.
+
+### 🏃 Corrida (estilo dino do Google)
+
+O cenário vem até você e a velocidade aumenta com o tempo.
+
+| Tecla | Ação |
+| --- | --- |
+| `ESPAÇO` / `W` / `↑` | Pular (segure para ir mais alto) |
+| `S` / `↓` | Abaixar · no ar, desce mais rápido |
+| `SHIFT` / `X` | Dash: fica invencível por um instante |
+| `CLIQUE` | Pular com o mouse |
+
+### 🕹️ Livre (WASD)
+
+Você controla a caminhada: o cenário só avança quando você anda.
+
+| Tecla | Ação |
+| --- | --- |
+| `A` / `D` ou `←` / `→` | Andar |
+| `W` / `ESPAÇO` / `↑` | Pular (segure para ir mais alto) |
+| `S` / `↓` | Abaixar e andar agachado · no ar, desce mais rápido |
+| `SHIFT` / `X` | Dash na direção em que está olhando |
+
+Na fase 3 (Telhados), encoste na parede de um prédio no ar e pule de novo para fazer o wall-jump.
+
+### 📱 No celular
+
+Aparecem botões na tela: `◀` `▶` para andar (modo Livre), `▲` pular, `▼` abaixar e `⚡` dash. No modo Corrida, tocar em qualquer lugar da tela também pula. Em telas pequenas o cenário é reduzido para dar tempo de ver o que vem pela frente.
 
 ## 🏗️ Estrutura do Projeto
 
@@ -131,8 +159,14 @@ src/
 │   ├── Menu.css
 │   ├── HUD.tsx            # Placar e informações
 │   └── HUD.css
+├── data/
+│   └── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
+├── game/                  # Regras do jogo, sem React nem DOM (reaproveitável no app Expo)
+│   ├── engine.ts          # Estado da partida, passo por frame, ações e eventos
+│   ├── physics.ts         # Gravidade, colisões e paredes
+│   ├── spawn.ts           # Geração de obstáculos
+│   └── config.ts          # Constantes do jogo (pulo, power-ups, fases...)
 ├── hooks/
-│   ├── usePhysics.ts      # Lógica de física do jogo
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
 ├── types/
 │   └── game.ts            # Tipos TypeScript do jogo
@@ -161,16 +195,24 @@ O jogo se adapta automaticamente para:
 
 ### Ajustar Dificuldade
 
-Edite `src/components/Game.tsx` e modifique `GAME_CONFIG`:
+Os números de cada modo ficam em `src/data/gameModes.ts`:
+
+- `RUNNER_TUNING` (Corrida): velocidade inicial e máxima, aceleração e o tempo mínimo entre obstáculos
+- `FREE_TUNING` (Livre): velocidade de caminhada, aceleração, controle no ar e distância entre obstáculos
+
+O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/game/config.ts`, e as hitboxes em `src/game/physics.ts`.
+
+### Usando a engine em outro front end (ex.: Expo)
+
+`src/game/engine.ts` não depende de React nem do navegador. O fluxo é:
 
 ```typescript
-const GAME_CONFIG: GameConfig = {
-  jumpPower: 20,      // Altura do pulo
-  gravity: 0.8,       // Força da gravidade
-  initialSpeed: 5,    // Velocidade inicial
-  maxSpeed: 15,       // Velocidade máxima
-  scrollSpeed: 5,     // Velocidade de movimento dos obstáculos
-}
+const state = createGameState({ mode: 'runner', width, height })  // tamanho do mundo: fitWorld()
+// a cada frame:
+const events = stepGame(state, { left, right, down }, deltaMs)     // 'coin' | 'artist' | 'gameOver'
+desenhar(getView(state))
+// botões:
+pressJump(state) / releaseJump(state) / pressDash(state)
 ```
 
 ### Cores e Temas
