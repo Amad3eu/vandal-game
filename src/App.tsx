@@ -76,7 +76,7 @@ export default function App() {
   }, [gameState])
 
   return (
-    <div className="app">
+    <div className={`app ${gameState === 'playing' ? 'is-playing' : ''}`}>
       {gameState === 'menu' && (
         <Menu
           highScore={highScore}

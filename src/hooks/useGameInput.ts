@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import type { GameAction } from '../types/game'
 
 /** Directions the game loop polls every frame while they are held. */
 export interface HeldInput {
@@ -14,12 +15,21 @@ interface GameInputHandlers {
 }
 
 // Physical key positions (KeyboardEvent.code), so WASD works on any keyboard layout.
-const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW']
-const DOWN_KEYS = ['ArrowDown', 'KeyS']
-const LEFT_KEYS = ['ArrowLeft', 'KeyA']
-const RIGHT_KEYS = ['ArrowRight', 'KeyD']
-const DASH_KEYS = ['ShiftLeft', 'ShiftRight', 'KeyX', 'KeyK']
-const GAME_KEYS = new Set([...JUMP_KEYS, ...DOWN_KEYS, ...LEFT_KEYS, ...RIGHT_KEYS, ...DASH_KEYS])
+const KEY_ACTIONS: Record<string, GameAction> = {
+  Space: 'jump',
+  ArrowUp: 'jump',
+  KeyW: 'jump',
+  ArrowDown: 'down',
+  KeyS: 'down',
+  ArrowLeft: 'left',
+  KeyA: 'left',
+  ArrowRight: 'right',
+  KeyD: 'right',
+  ShiftLeft: 'dash',
+  ShiftRight: 'dash',
+  KeyX: 'dash',
+  KeyK: 'dash',
+}
 
 // Typing in the feedback form or the drawing tools must not move the player.
 function isEditableTarget(target: EventTarget | null) {
@@ -35,83 +45,73 @@ function isUiTarget(target: EventTarget | null) {
   )
 }
 
+function heldFrom(sources: Map<GameAction, Set<string>>): HeldInput {
+  const isHeld = (action: GameAction) => (sources.get(action)?.size ?? 0) > 0
+  return { left: isHeld('left'), right: isHeld('right'), down: isHeld('down') }
+}
+
 export function useGameInput({ onJump, onJumpEnd = () => {}, onDash = () => {} }: GameInputHandlers) {
   const held = useRef<HeldInput>({ left: false, right: false, down: false })
+  // Who is holding each action (a key, a finger, a mouse button). An action stays held until
+  // its last source lets go, so W + Space or keyboard + touch never fire it twice.
+  const sources = useRef(new Map<GameAction, Set<string>>())
 
   // Keep the latest callbacks without re-binding listeners every render.
   const handlers = useRef({ onJump, onJumpEnd, onDash })
   handlers.current = { onJump, onJumpEnd, onDash }
 
-  useEffect(() => {
-    const pressedKeys = new Set<string>()
-    let rightMouseDown = false
-
-    const syncHeld = () => {
-      const isHeld = (keys: string[]) => keys.some((key) => pressedKeys.has(key))
-      held.current = {
-        left: isHeld(LEFT_KEYS),
-        right: isHeld(RIGHT_KEYS),
-        down: isHeld(DOWN_KEYS) || rightMouseDown,
-      }
+  const press = useCallback((action: GameAction, source = 'button') => {
+    let holders = sources.current.get(action)
+    if (!holders) {
+      holders = new Set()
+      sources.current.set(action, holders)
     }
+    const wasHeld = holders.size > 0
+    holders.add(source)
+    held.current = heldFrom(sources.current)
+    if (wasHeld) return
 
+    if (action === 'jump') handlers.current.onJump()
+    if (action === 'dash') handlers.current.onDash()
+  }, [])
+
+  const release = useCallback((action: GameAction, source = 'button') => {
+    const holders = sources.current.get(action)
+    if (!holders?.delete(source)) return
+    held.current = heldFrom(sources.current)
+
+    if (action === 'jump' && holders.size === 0) handlers.current.onJumpEnd()
+  }, [])
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!GAME_KEYS.has(e.code) || isEditableTarget(e.target)) return
+      const action = KEY_ACTIONS[e.code]
+      if (!action || isEditableTarget(e.target)) return
       e.preventDefault() // arrows and space would scroll the page
-
-      const alreadyPressed = pressedKeys.has(e.code)
-      pressedKeys.add(e.code)
-      syncHeld()
-      if (alreadyPressed) return
-
-      if (JUMP_KEYS.includes(e.code)) handlers.current.onJump()
-      if (DASH_KEYS.includes(e.code)) handlers.current.onDash()
+      press(action, `key:${e.code}`)
     }
 
     // Key releases are never filtered, otherwise a key released inside a text field would stay held.
     const handleKeyUp = (e: KeyboardEvent) => {
-      pressedKeys.delete(e.code)
-      syncHeld()
-      if (JUMP_KEYS.includes(e.code)) handlers.current.onJumpEnd()
+      const action = KEY_ACTIONS[e.code]
+      if (action) release(action, `key:${e.code}`)
+    }
+
+    // Tap or click anywhere on the game to jump (hold for a higher jump); the right button ducks.
+    const handlePointerDown = (e: PointerEvent) => {
+      if (isUiTarget(e.target)) return
+      press(e.button === 2 ? 'down' : 'jump', `pointer:${e.pointerId}`)
+    }
+
+    const handlePointerUp = (e: PointerEvent) => {
+      release('jump', `pointer:${e.pointerId}`)
+      release('down', `pointer:${e.pointerId}`)
     }
 
     // Alt-tabbing while holding a direction must not leave the player walking forever.
     const handleBlur = () => {
-      pressedKeys.clear()
-      rightMouseDown = false
-      syncHeld()
-    }
-
-    const handleClick = (e: MouseEvent) => {
-      if (isUiTarget(e.target)) return
-      handlers.current.onJump()
-    }
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (isUiTarget(e.target)) return
-      handlers.current.onJump()
-    }
-
-    const handleTouchEnd = () => {
-      handlers.current.onJumpEnd()
-    }
-
-    const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 2) {
-        e.preventDefault()
-        rightMouseDown = true
-        syncHeld()
-      }
-    }
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 2) {
-        e.preventDefault()
-        rightMouseDown = false
-        syncHeld()
-      } else {
-        // Releasing the click ends the jump-hold (variable jump height).
-        handlers.current.onJumpEnd()
+      for (const [action, holders] of sources.current) {
+        for (const source of [...holders]) release(action, source)
       }
     }
 
@@ -121,26 +121,24 @@ export function useGameInput({ onJump, onJumpEnd = () => {}, onDash = () => {} }
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
     window.addEventListener('blur', handleBlur)
-    window.addEventListener('click', handleClick)
-    window.addEventListener('touchstart', handleTouchStart)
-    window.addEventListener('touchend', handleTouchEnd)
-    window.addEventListener('mousedown', handleMouseDown)
-    window.addEventListener('mouseup', handleMouseUp)
     window.addEventListener('contextmenu', preventContextMenu)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
       window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('click', handleClick)
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchend', handleTouchEnd)
-      window.removeEventListener('mousedown', handleMouseDown)
-      window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('contextmenu', preventContextMenu)
     }
-  }, [])
+  }, [press, release])
 
-  return { held }
+  // press/release are the hook's public input API: on-screen buttons (or any other front end)
+  // drive the same actions as the keyboard.
+  return { held, press, release }
 }

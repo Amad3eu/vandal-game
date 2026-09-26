@@ -46,6 +46,12 @@ export type GamePhase = 1 | 2 | 3
 /** 'runner' = estilo dino do Google (o cenário vem até você); 'free' = andar livre com WASD. */
 export type GameMode = 'runner' | 'free'
 
+/**
+ * Platform-agnostic player actions. Keyboard, mouse, touch and on-screen buttons all map to
+ * these, so another front end (e.g. a React Native app) only needs to call press/release.
+ */
+export type GameAction = 'left' | 'right' | 'down' | 'jump' | 'dash'
+
 export interface PhaseInfo {
   id: GamePhase
   name: string

@@ -136,7 +136,10 @@ export default function Menu({
           <h3>Como Jogar · {modeInfo.title}</h3>
           <ul>
             {modeInfo.controls.map(([keys, action]) => (
-              <li key={keys}><strong>{keys}</strong> - {action}</li>
+              <li key={keys} className="only-keyboard"><strong>{keys}</strong> - {action}</li>
+            ))}
+            {modeInfo.touchControls.map(([keys, action]) => (
+              <li key={`touch-${keys}`} className="only-touch"><strong>{keys}</strong> - {action}</li>
             ))}
             <li>Desvie dos obstáculos para marcar pontos</li>
             <li>Pegue o <strong>SKATE</strong> para ganhar velocidade por 15 segundos</li>

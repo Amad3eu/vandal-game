@@ -53,7 +53,7 @@ export default function HUD({
   }
   return (
     <div className="hud">
-      <div className="hud-item">
+      <div className="hud-item hud-optional">
         <span className="hud-label">Modo</span>
         <span className="hud-tag mode-tag">
           {GAME_MODES[mode].icon} {GAME_MODES[mode].title}
@@ -69,7 +69,7 @@ export default function HUD({
         <span className="hud-label">Pontos</span>
         <span className="hud-value">{score}</span>
       </div>
-      <div className="hud-item">
+      <div className="hud-item hud-optional">
         <span className="hud-label">Recorde</span>
         <span className="hud-value">{highScore}</span>
       </div>
@@ -77,7 +77,7 @@ export default function HUD({
         <span className="hud-label">Moedas</span>
         <span className="hud-value">{coins}</span>
       </div>
-      <div className="hud-item">
+      <div className="hud-item hud-optional">
         <span className="hud-label">Moedas Totais</span>
         <span className="hud-value">{totalCoins}</span>
       </div>
@@ -90,7 +90,7 @@ export default function HUD({
           </div>
         </div>
       )}
-      <div className="hud-item">
+      <div className="hud-item hud-optional">
         <span className="hud-label">Ambiente</span>
         <span className={`hud-tag ${isNight ? 'night' : 'day'}`}>
           {isNight ? 'Noite' : 'Dia'}

@@ -1,4 +1,4 @@
-import type { GameMode } from '../types/game'
+import type { GameAction, GameMode } from '../types/game'
 
 export interface GameModeInfo {
   id: GameMode
@@ -7,9 +7,22 @@ export interface GameModeInfo {
   tagline: string
   /** Pares [teclas, ação] mostrados no menu e na dica do início da partida. */
   controls: Array<[string, string]>
+  /** Mesma lista para telas de toque (botões na tela). */
+  touchControls: Array<[string, string]>
+  /** Botões na tela em aparelhos de toque, da esquerda para a direita. */
+  touchButtons: GameAction[]
   tip: string
   /** Chave do recorde no localStorage: cada modo tem o seu. */
   highScoreKey: string
+}
+
+/** Nome acessível de cada botão na tela. */
+export const TOUCH_BUTTON_LABELS: Record<GameAction, string> = {
+  left: 'Andar para a esquerda',
+  right: 'Andar para a direita',
+  down: 'Abaixar',
+  dash: 'Dash',
+  jump: 'Pular',
 }
 
 export const GAME_MODE_ORDER: GameMode[] = ['runner', 'free']
@@ -24,8 +37,14 @@ export const GAME_MODES: Record<GameMode, GameModeInfo> = {
       ['ESPAÇO / W / ↑', 'Pular (segure para ir mais alto)'],
       ['S / ↓', 'Abaixar · no ar, desce mais rápido'],
       ['SHIFT / X', 'Dash: fica invencível por um instante'],
-      ['CLIQUE / TOQUE', 'Pular (no celular)'],
+      ['CLIQUE', 'Pular com o mouse'],
     ],
+    touchControls: [
+      ['TOQUE NA TELA ou ▲', 'Pular (segure para ir mais alto)'],
+      ['▼', 'Abaixar · no ar, desce mais rápido'],
+      ['⚡', 'Dash: fica invencível por um instante'],
+    ],
+    touchButtons: ['dash', 'down', 'jump'],
     tip: 'A velocidade aumenta com o tempo',
     // Chave original do jogo: quem já jogava mantém o recorde.
     highScoreKey: 'dinoGameHighScore',
@@ -41,7 +60,14 @@ export const GAME_MODES: Record<GameMode, GameModeInfo> = {
       ['S / ↓', 'Abaixar e andar agachado · no ar, desce mais rápido'],
       ['SHIFT / X', 'Dash na direção em que está olhando'],
     ],
-    tip: 'O cenário só avança quando você anda (precisa de teclado)',
+    touchControls: [
+      ['◀ ▶', 'Andar'],
+      ['▲', 'Pular (segure para ir mais alto)'],
+      ['▼', 'Abaixar e andar agachado · no ar, desce mais rápido'],
+      ['⚡', 'Dash na direção em que está olhando'],
+    ],
+    touchButtons: ['left', 'right', 'dash', 'down', 'jump'],
+    tip: 'O cenário só avança quando você anda',
     highScoreKey: 'dinoGameHighScoreFree',
   },
 }

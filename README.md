@@ -125,11 +125,11 @@ O cenário vem até você e a velocidade aumenta com o tempo.
 | `ESPAÇO` / `W` / `↑` | Pular (segure para ir mais alto) |
 | `S` / `↓` | Abaixar · no ar, desce mais rápido |
 | `SHIFT` / `X` | Dash: fica invencível por um instante |
-| `CLIQUE` / `TOQUE` | Pular (no celular) |
+| `CLIQUE` | Pular com o mouse |
 
 ### 🕹️ Livre (WASD)
 
-Você controla a caminhada: o cenário só avança quando você anda. Por enquanto precisa de teclado.
+Você controla a caminhada: o cenário só avança quando você anda.
 
 | Tecla | Ação |
 | --- | --- |
@@ -139,6 +139,10 @@ Você controla a caminhada: o cenário só avança quando você anda. Por enquan
 | `SHIFT` / `X` | Dash na direção em que está olhando |
 
 Na fase 3 (Telhados), encoste na parede de um prédio no ar e pule de novo para fazer o wall-jump.
+
+### 📱 No celular
+
+Aparecem botões na tela: `◀` `▶` para andar (modo Livre), `▲` pular, `▼` abaixar e `⚡` dash. No modo Corrida, tocar em qualquer lugar da tela também pula. Em telas pequenas o cenário é reduzido para dar tempo de ver o que vem pela frente.
 
 ## 🏗️ Estrutura do Projeto
 

@@ -17,11 +17,27 @@
   max-width: none;
   min-height: 100vh;
   height: 100vh;
+  /* Mobile browsers: the visible height, so bottom buttons don't hide behind the toolbar. */
+  min-height: 100dvh;
+  height: 100dvh;
   background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
   border: none;
   border-radius: 0;
   overflow: hidden;
   box-shadow: none;
+}
+
+/* Game pixels, scaled to fit small screens (see MIN_WORLD_* in Game.tsx). */
+.game-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  transform-origin: 0 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .game-container.is-night {
@@ -153,6 +169,57 @@
   100% {
     opacity: 0;
     visibility: hidden;
+  }
+}
+
+/* Touch screens show on-screen buttons instead of the keyboard reminder. */
+@media (hover: none) and (pointer: coarse) {
+  .controls-hint {
+    display: none;
+  }
+}
+
+/* ---- Grind combo (Jet Set Radio) ---- */
+.grind-combo {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  left: max(20px, env(safe-area-inset-left));
+  z-index: 6;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 16px 8px;
+  border-radius: 12px;
+  background: rgba(31, 17, 71, 0.78);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  transform: rotate(-4deg);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+.grind-combo-x {
+  color: #ffd23f;
+  font-size: 1rem;
+}
+
+.grind-combo-value {
+  display: inline-block;
+  color: #ff4d9d;
+  font-size: 2rem;
+  line-height: 1;
+  text-shadow: 2px 2px 0 #1f1147;
+  animation: grindPop 0.25s ease-out;
+}
+
+@keyframes grindPop {
+  from {
+    transform: scale(1.4);
+  }
+  to {
+    transform: scale(1);
   }
 }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Dinosaur from './Dinosaur'
 import Obstacles from './Obstacle'
 import HUD from './HUD'
+import TouchControls from './TouchControls'
 import GraffitiDialog from './GraffitiDialog'
 import DrawingCanvas from './DrawingCanvas'
 import DrawingConfirmation from './DrawingConfirmation'
@@ -88,6 +89,11 @@ const BASE_X = 72
 const BUILDING_WIDTH = 78
 const WALL_CONTACT_INSET_X = 14
 const ROOF_STEP_TOLERANCE = 8 // matches the platform landing tolerance
+
+// Smaller screens get a scaled-down world with at least this much room (in game pixels),
+// so there is time to see what's coming; the HUD and touch buttons stay full size.
+const MIN_WORLD_WIDTH = 820
+const MIN_WORLD_HEIGHT = 560
 
 function getPhase(score: number): 1 | 2 | 3 {
   if (score >= PHASE_3_SCORE) return 3
@@ -186,6 +192,7 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
   const [signatures, setSignatures] = useState<GraffitiArtist[]>([])
   const [gameSpeed, setGameSpeed] = useState(BASE_CONFIG.initialSpeed)
   const [groundLevel, setGroundLevel] = useState(560)
+  const [worldScale, setWorldScale] = useState(1)
   const [skateTimeLeftMs, setSkateTimeLeftMs] = useState(0)
   const [skateFlickering, setSkateFlickering] = useState(false)
   const [lightningTimeLeftMs, setLightningTimeLeftMs] = useState(0)
@@ -270,7 +277,7 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
   )
 
   const createFloatingPath = useCallback((): Obstacle[] => {
-    const containerWidth = gameContainerRef.current?.clientWidth ?? 1200
+    const containerWidth = containerWidthRef.current
     const startX = containerWidth + 20
     const y = gameConfig.groundLevel - TRAIN_PLATFORM_HEIGHT - 8
     const trainCount = 2 + Math.floor(Math.random() * 3) // 2, 3 ou 4 trens lado a lado
@@ -317,7 +324,7 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
   }, [gameConfig.groundLevel])
 
   const createObstacle = useCallback((): Obstacle => {
-    const containerWidth = gameContainerRef.current?.clientWidth ?? 1200
+    const containerWidth = containerWidthRef.current
 
     // Fase 3 (Telhados): prédios altos que exigem wall-jump para escalar.
     if (phaseRef.current === 3 && Math.random() < 0.26) {
@@ -519,7 +526,11 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
 
   // Ducking is polled every frame from the held input, so it also works when landing with
   // the key already down.
-  const { held } = useGameInput({ onJump: handleJump, onJumpEnd: handleJumpEnd, onDash: handleDash })
+  const { held, press, release } = useGameInput({
+    onJump: handleJump,
+    onJumpEnd: handleJumpEnd,
+    onDash: handleDash,
+  })
 
   const handleAcceptArtist = useCallback(() => {
     if (!currentArtist) return
@@ -582,20 +593,24 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
   }, [currentArtist, drawnImage])
 
   useEffect(() => {
-    const updateGroundLevel = () => {
-      const containerHeight = gameContainerRef.current?.clientHeight ?? 700
-      // Cached so the free-mode camera doesn't read layout every frame.
-      containerWidthRef.current = gameContainerRef.current?.clientWidth ?? 1200
+    const updateLayout = () => {
+      const viewportWidth = gameContainerRef.current?.clientWidth ?? 1200
+      const viewportHeight = gameContainerRef.current?.clientHeight ?? 700
+      const scale = Math.min(1, viewportWidth / MIN_WORLD_WIDTH, viewportHeight / MIN_WORLD_HEIGHT)
+      setWorldScale(scale)
+      // Everything below is in world (game) pixels. The width is cached so the free-mode
+      // camera doesn't read layout every frame.
+      containerWidthRef.current = viewportWidth / scale
       // Keep physics ground aligned with the visible top of the floor layer.
-      const nextGroundLevel = Math.round(containerHeight * 0.76)
+      const nextGroundLevel = Math.round((viewportHeight / scale) * 0.76)
       setGroundLevel(nextGroundLevel)
     }
 
-    updateGroundLevel()
-    window.addEventListener('resize', updateGroundLevel)
+    updateLayout()
+    window.addEventListener('resize', updateLayout)
 
     return () => {
-      window.removeEventListener('resize', updateGroundLevel)
+      window.removeEventListener('resize', updateLayout)
     }
   }, [])
 
@@ -612,7 +627,16 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
     localStorage.setItem('dinoGameBlackbook', JSON.stringify(blackbook))
   }, [blackbook])
 
+  const groundLevelRef = useRef(groundLevel)
   useEffect(() => {
+    // Obstacles move with the floor when it shifts (window resize or phone rotation).
+    const groundShift = groundLevel - groundLevelRef.current
+    groundLevelRef.current = groundLevel
+    if (groundShift !== 0) {
+      obstaclesRef.current = obstaclesRef.current.map((obs) => ({ ...obs, y: obs.y + groundShift }))
+      setObstacles(obstaclesRef.current)
+    }
+
     dinosaurRef.current = {
       ...dinosaurRef.current,
       y: groundLevel - gameConfig.playerSize,
@@ -1167,29 +1191,41 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
         ref={gameContainerRef}
         className={`game-container ${isNight ? 'is-night' : ''} phase-${phase}`}
       >
-        <div className="game-background">
-          <div
-            className="background-image-layer day"
-            style={{ backgroundImage: `url(${dayBackground})`, opacity: `${1 - backgroundBlend}` }}
+        {/* The world is laid out in game pixels and scaled to fit; UI below stays unscaled. */}
+        <div
+          className="game-world"
+          style={{
+            width: `${100 / worldScale}%`,
+            height: `${100 / worldScale}%`,
+            transform: `scale(${worldScale})`,
+          }}
+        >
+          <div className="game-background">
+            <div
+              className="background-image-layer day"
+              style={{ backgroundImage: `url(${dayBackground})`, opacity: `${1 - backgroundBlend}` }}
+            />
+            <div
+              className="background-image-layer night"
+              style={{ backgroundImage: `url(${nightBackground})`, opacity: `${backgroundBlend}` }}
+            />
+            <div className="bg-layer bg-clouds" />
+            <div className="bg-layer bg-ground" />
+          </div>
+
+          <Dinosaur
+            state={dinosaur}
+            hasSkate={skateTimeLeftMs > 0}
+            skateFlickering={skateFlickering}
+            isDashing={dashActive}
+            isWallClinging={wallClingSide !== 0}
+            facing={visualFacing}
+            isMoving={isMoving}
           />
-          <div
-            className="background-image-layer night"
-            style={{ backgroundImage: `url(${nightBackground})`, opacity: `${backgroundBlend}` }}
-          />
-          <div className="bg-layer bg-clouds" />
-          <div className="bg-layer bg-ground" />
+          <Obstacles obstacles={obstacles} />
         </div>
 
-        <Dinosaur
-          state={dinosaur}
-          hasSkate={skateTimeLeftMs > 0}
-          skateFlickering={skateFlickering}
-          isDashing={dashActive}
-          isWallClinging={wallClingSide !== 0}
-          facing={visualFacing}
-          isMoving={isMoving}
-        />
-        <Obstacles obstacles={obstacles} />
+        <TouchControls mode={mode} onPress={press} onRelease={release} />
 
         <div className="controls-hint" aria-hidden="true">
           <span className="controls-hint-title">
@@ -1205,7 +1241,8 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
         {grindCombo > 1 && (
           <div className="grind-combo" aria-hidden="true">
             <span className="grind-combo-x">GRIND</span>
-            <span className="grind-combo-value">x{grindCombo}</span>
+            {/* keyed by the value so the pop animation replays on every combo step */}
+            <span key={grindCombo} className="grind-combo-value">x{grindCombo}</span>
           </div>
         )}
 
