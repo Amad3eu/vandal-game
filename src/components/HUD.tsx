@@ -1,7 +1,9 @@
-import { GraffitiArtist } from '../types/game'
+import { GameMode, GraffitiArtist } from '../types/game'
+import { GAME_MODES } from '../data/gameModes'
 import './HUD.css'
 
 interface HUDProps {
+  mode?: GameMode
   score: number
   coins: number
   totalCoins?: number
@@ -26,6 +28,7 @@ const PHASE_INFO: Record<1 | 2 | 3, { name: string; emoji: string }> = {
 }
 
 export default function HUD({
+  mode = 'runner',
   score,
   coins,
   totalCoins = 0,
@@ -51,6 +54,12 @@ export default function HUD({
   return (
     <div className="hud">
       <div className="hud-item">
+        <span className="hud-label">Modo</span>
+        <span className="hud-tag mode-tag">
+          {GAME_MODES[mode].icon} {GAME_MODES[mode].title}
+        </span>
+      </div>
+      <div className="hud-item">
         <span className="hud-label">Fase</span>
         <span className={`hud-tag phase-tag phase-tag-${phase}`}>
           {PHASE_INFO[phase].emoji} {phase} · {PHASE_INFO[phase].name}
@@ -72,12 +81,15 @@ export default function HUD({
         <span className="hud-label">Moedas Totais</span>
         <span className="hud-value">{totalCoins}</span>
       </div>
-      <div className="hud-item">
-        <span className="hud-label">Velocidade</span>
-        <div className="speed-bar">
-          <div className="speed-fill" style={{ width: `${gameSpeed}%` }} />
+      {/* In the free mode the player sets the pace, so there is no scroll speed to show. */}
+      {mode === 'runner' && (
+        <div className="hud-item">
+          <span className="hud-label">Velocidade</span>
+          <div className="speed-bar">
+            <div className="speed-fill" style={{ width: `${gameSpeed}%` }} />
+          </div>
         </div>
-      </div>
+      )}
       <div className="hud-item">
         <span className="hud-label">Ambiente</span>
         <span className={`hud-tag ${isNight ? 'night' : 'day'}`}>

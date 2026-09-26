@@ -1,62 +1,94 @@
 import { useEffect, useRef } from 'react'
 
-export function useGameInput(
-  onJump: () => void,
-  onDuckStart: () => void = () => {},
-  onDuckEnd: () => void = () => {},
-  onJumpEnd: () => void = () => {},
-  onDash: () => void = () => {}
-) {
-  const keysPressed = useRef<Set<string>>(new Set())
+/** Directions the game loop polls every frame while they are held. */
+export interface HeldInput {
+  left: boolean
+  right: boolean
+  down: boolean
+}
+
+interface GameInputHandlers {
+  onJump: () => void
+  onJumpEnd?: () => void
+  onDash?: () => void
+}
+
+// Physical key positions (KeyboardEvent.code), so WASD works on any keyboard layout.
+const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW']
+const DOWN_KEYS = ['ArrowDown', 'KeyS']
+const LEFT_KEYS = ['ArrowLeft', 'KeyA']
+const RIGHT_KEYS = ['ArrowRight', 'KeyD']
+const DASH_KEYS = ['ShiftLeft', 'ShiftRight', 'KeyX', 'KeyK']
+const GAME_KEYS = new Set([...JUMP_KEYS, ...DOWN_KEYS, ...LEFT_KEYS, ...RIGHT_KEYS, ...DASH_KEYS])
+
+// Typing in the feedback form or the drawing tools must not move the player.
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
+
+// Clicking the UI (feedback widget, HUD buttons, dialogs) must not make the player jump.
+function isUiTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('button, a, input, textarea, select, label, [role="dialog"]') !== null
+  )
+}
+
+export function useGameInput({ onJump, onJumpEnd = () => {}, onDash = () => {} }: GameInputHandlers) {
+  const held = useRef<HeldInput>({ left: false, right: false, down: false })
 
   // Keep the latest callbacks without re-binding listeners every render.
-  const handlers = useRef({ onJump, onDuckStart, onDuckEnd, onJumpEnd, onDash })
-  handlers.current = { onJump, onDuckStart, onDuckEnd, onJumpEnd, onDash }
+  const handlers = useRef({ onJump, onJumpEnd, onDash })
+  handlers.current = { onJump, onJumpEnd, onDash }
 
   useEffect(() => {
-    const isJumpKey = (e: KeyboardEvent) =>
-      e.key === ' ' || e.key === 'ArrowUp' || e.key.toLowerCase() === 'w'
-    const isDuckKey = (e: KeyboardEvent) => e.key === 'ArrowDown' || e.key.toLowerCase() === 's'
-    const isDashKey = (e: KeyboardEvent) =>
-      e.key === 'Shift' || e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'k'
+    const pressedKeys = new Set<string>()
+    let rightMouseDown = false
+
+    const syncHeld = () => {
+      const isHeld = (keys: string[]) => keys.some((key) => pressedKeys.has(key))
+      held.current = {
+        left: isHeld(LEFT_KEYS),
+        right: isHeld(RIGHT_KEYS),
+        down: isHeld(DOWN_KEYS) || rightMouseDown,
+      }
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toUpperCase()
-      const alreadyPressed = keysPressed.current.has(key)
-      keysPressed.current.add(key)
+      if (!GAME_KEYS.has(e.code) || isEditableTarget(e.target)) return
+      e.preventDefault() // arrows and space would scroll the page
 
-      if (isJumpKey(e)) {
-        e.preventDefault()
-        if (!alreadyPressed) handlers.current.onJump()
-      }
+      const alreadyPressed = pressedKeys.has(e.code)
+      pressedKeys.add(e.code)
+      syncHeld()
+      if (alreadyPressed) return
 
-      if (isDuckKey(e) && !alreadyPressed) {
-        handlers.current.onDuckStart()
-      }
-
-      if (isDashKey(e) && !alreadyPressed) {
-        e.preventDefault()
-        handlers.current.onDash()
-      }
+      if (JUMP_KEYS.includes(e.code)) handlers.current.onJump()
+      if (DASH_KEYS.includes(e.code)) handlers.current.onDash()
     }
 
+    // Key releases are never filtered, otherwise a key released inside a text field would stay held.
     const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current.delete(e.key.toUpperCase())
-
-      if (isDuckKey(e)) {
-        handlers.current.onDuckEnd()
-      }
-
-      if (isJumpKey(e)) {
-        handlers.current.onJumpEnd()
-      }
+      pressedKeys.delete(e.code)
+      syncHeld()
+      if (JUMP_KEYS.includes(e.code)) handlers.current.onJumpEnd()
     }
 
-    const handleClick = () => {
+    // Alt-tabbing while holding a direction must not leave the player walking forever.
+    const handleBlur = () => {
+      pressedKeys.clear()
+      rightMouseDown = false
+      syncHeld()
+    }
+
+    const handleClick = (e: MouseEvent) => {
+      if (isUiTarget(e.target)) return
       handlers.current.onJump()
     }
 
-    const handleTouchStart = () => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (isUiTarget(e.target)) return
       handlers.current.onJump()
     }
 
@@ -67,14 +99,16 @@ export function useGameInput(
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 2) {
         e.preventDefault()
-        handlers.current.onDuckStart()
+        rightMouseDown = true
+        syncHeld()
       }
     }
 
     const handleMouseUp = (e: MouseEvent) => {
       if (e.button === 2) {
         e.preventDefault()
-        handlers.current.onDuckEnd()
+        rightMouseDown = false
+        syncHeld()
       } else {
         // Releasing the click ends the jump-hold (variable jump height).
         handlers.current.onJumpEnd()
@@ -87,6 +121,7 @@ export function useGameInput(
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
     window.addEventListener('click', handleClick)
     window.addEventListener('touchstart', handleTouchStart)
     window.addEventListener('touchend', handleTouchEnd)
@@ -97,6 +132,7 @@ export function useGameInput(
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
       window.removeEventListener('click', handleClick)
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchend', handleTouchEnd)
@@ -106,7 +142,5 @@ export function useGameInput(
     }
   }, [])
 
-  return {
-    isKeyPressed: (key: string) => keysPressed.current.has(key.toUpperCase()),
-  }
+  return { held }
 }

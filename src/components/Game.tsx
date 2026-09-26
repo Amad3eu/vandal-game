@@ -9,7 +9,15 @@ import Blackbook from './Blackbook'
 import { usePhysics } from '../hooks/usePhysics'
 import { useGameInput } from '../hooks/useGameInput'
 import { ARTIST_SIGNATURES } from '../data/artistSignatures'
-import { DinosaurState, Obstacle, GameConfig, GraffitiArtist, GraffitiArt } from '../types/game'
+import { GAME_MODES, RUNNER_TUNING, FREE_TUNING } from '../data/gameModes'
+import {
+  DinosaurState,
+  Obstacle,
+  GameConfig,
+  GameMode,
+  GraffitiArtist,
+  GraffitiArt,
+} from '../types/game'
 import type { MusicOption } from '../App'
 import dayBackground from '../assets/background/9.png'
 import nightBackground from '../assets/background/7.png'
@@ -18,12 +26,16 @@ import './Game.css'
 
 const BASE_CONFIG: Omit<GameConfig, 'groundLevel'> = {
   playerSize: 100,
-  jumpPower: 14,
+  // Jump arc tuned with a frame-by-frame replay of this loop: a full jump now clears a spray
+  // with a ~280ms timing window at the starting speed (it used to be impossible).
+  jumpPower: 13.5,
   gravity: 0.96,
+  riseGravityScale: 0.55,
+  fallGravityScale: 0.9,
   obstacleWidth: 36,
   obstacleHeight: 62,
-  initialSpeed: 5.8,
-  maxSpeed: 11.5,
+  initialSpeed: RUNNER_TUNING.initialSpeed,
+  maxSpeed: RUNNER_TUNING.maxSpeed,
   scrollSpeed: 1,
 }
 
@@ -34,8 +46,9 @@ const SKATE_DURATION_MS = 15000
 const SKATE_SPEED_MULTIPLIER = 1.28
 const LIGHTNING_DURATION_MS = 3000
 const JUMP_BOOST_DURATION_MS = 4500
-const JUMP_BOOST_MULTIPLIER = 1.35
+const JUMP_BOOST_MULTIPLIER = 1.2
 const DUCK_HEIGHT = 80
+const BIRD_ALTITUDE = 104 // bird top above the ground: duck under it or jump over it
 const TRAMPOLINE_BOOST = 1.12
 const COIN_SCORE = 25
 const GRAFFITI_SIGNATURE_SCORE = 150
@@ -46,12 +59,16 @@ const TRAIN_PLATFORM_WIDTH = 240
 const TRAIN_PLATFORM_HEIGHT = 80
 
 // --- Phase system (Fase 1 Rua / Fase 2 Metrô / Fase 3 Telhados) ---
-const PHASE_2_SCORE = 800
-const PHASE_3_SCORE = 2000
-const PHASE_SPEED_BONUS = [0, 0.9, 2.4] // extra top speed per phase index
+const PHASE_2_SCORE = 1200
+const PHASE_3_SCORE = 3500
 
 // --- Variable jump height (Mario) ---
-const JUMP_CUT_MULTIPLIER = 0.42 // velocity kept when the jump button is released mid-rise
+const JUMP_CUT_MULTIPLIER = 0.6 // velocity kept when the jump button is released mid-rise
+const MIN_JUMP_HEIGHT = 115 // a quick tap still rises this much, enough to clear a spray
+
+// --- Fast fall (Chrome dino): holding down mid-air drops quicker ---
+const FAST_FALL_GRAVITY = 2.5
+const FAST_FALL_MIN_VELOCITY = 3
 
 // --- Dash / esquiva (Hollow Knight / Subway roll) ---
 const DASH_DURATION_MS = 190
@@ -69,6 +86,8 @@ const WALL_JUMP_POWER_MULT = 1.16
 const WALL_CLING_MAX_MS = 520
 const BASE_X = 72
 const BUILDING_WIDTH = 78
+const WALL_CONTACT_INSET_X = 14
+const ROOF_STEP_TOLERANCE = 8 // matches the platform landing tolerance
 
 function getPhase(score: number): 1 | 2 | 3 {
   if (score >= PHASE_3_SCORE) return 3
@@ -76,18 +95,64 @@ function getPhase(score: number): 1 | 2 | 3 {
   return 1
 }
 
+function approach(value: number, target: number, step: number) {
+  return value < target ? Math.min(target, value + step) : Math.max(target, value - step)
+}
+
+/**
+ * Free mode: buildings are solid walls. Clamps a horizontal move so the player stops at a
+ * building face, and reports the side that was hit (1 = wall on the right, -1 = on the left).
+ */
+function moveAgainstBuildings(dino: DinosaurState, dx: number, obstacles: Obstacle[]) {
+  let move = dx
+  let wallContact: -1 | 0 | 1 = 0
+  const left = dino.x + WALL_CONTACT_INSET_X
+  const right = dino.x + dino.width - WALL_CONTACT_INSET_X
+  const bottom = dino.y + dino.height
+
+  for (const building of obstacles) {
+    if (building.type !== 'building') continue
+    if (bottom <= building.y + ROOF_STEP_TOLERANCE) continue // on (or above) the roof
+
+    const wallLeft = building.x + 4
+    const wallRight = building.x + building.width - 4
+    if (right <= wallLeft + 1) {
+      if (move > 0 && right + move > wallLeft) {
+        move = wallLeft - right
+        wallContact = 1
+      }
+    } else if (left >= wallRight - 1) {
+      if (move < 0 && left + move < wallRight) {
+        move = wallRight - left
+        wallContact = -1
+      }
+    } else {
+      // Already overlapping (e.g. after a resize): push out through the nearest face.
+      const pushLeft = wallLeft - right
+      const pushRight = wallRight - left
+      move = -pushLeft < pushRight ? pushLeft : pushRight
+    }
+  }
+
+  return { dx: move, wallContact }
+}
+
 interface GameProps {
+  mode: GameMode
+  highScore: number
   selectedMusic: MusicOption
   onGameOver: (score: number) => void
 }
 
-export default function Game({ selectedMusic, onGameOver }: GameProps) {
+export default function Game({ mode, highScore, selectedMusic, onGameOver }: GameProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<number>()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const lastTimeRef = useRef<number>(0)
-  const spawnTimerRef = useRef<number>(0)
-  const nextSpawnDelayRef = useRef<number>(1100)
+  const containerWidthRef = useRef(1200)
+  // Spawning is distance-based, so it works both with auto-scroll and with the free camera.
+  const spawnDistanceRef = useRef(0)
+  const nextSpawnGapRef = useRef(0)
   const obstacleCounterRef = useRef<number>(0)
   const gameOverRef = useRef(false)
   const jumpBufferRef = useRef(0)
@@ -104,7 +169,12 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
   const grindComboRef = useRef(0)
   const wallClingRef = useRef(false)
   const wallClingTimerRef = useRef(0)
+  const wallSideRef = useRef<1 | -1>(1) // side of the wall being gripped
   const phaseRef = useRef<1 | 2 | 3>(1)
+  const groundedRef = useRef(true) // on the ground or on a platform, as of the last frame
+  const jumpHeldRef = useRef(false)
+  const jumpCutArmedRef = useRef(false)
+  const jumpTakeoffYRef = useRef(0)
 
   const [score, setScore] = useState(0)
   const [coins, setCoins] = useState(0)
@@ -112,14 +182,8 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     const saved = localStorage.getItem('dinoGameTotalCoins')
     return saved ? parseInt(saved, 10) : 0
   })
-  const [signatures, setSignatures] = useState<GraffitiArtist[]>(() => {
-    const saved = localStorage.getItem('dinoGameSignatures')
-    return saved ? JSON.parse(saved) : []
-  })
-  const [highScore] = useState(() => {
-    const saved = localStorage.getItem('dinoGameHighScore')
-    return saved ? parseInt(saved, 10) : 0
-  })
+  // Signatures are counted per run (the loop used to clear them when the run started).
+  const [signatures, setSignatures] = useState<GraffitiArtist[]>([])
   const [gameSpeed, setGameSpeed] = useState(BASE_CONFIG.initialSpeed)
   const [groundLevel, setGroundLevel] = useState(560)
   const [skateTimeLeftMs, setSkateTimeLeftMs] = useState(0)
@@ -130,7 +194,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
   const [dashActive, setDashActive] = useState(false)
   const [dashCooldownMs, setDashCooldownMs] = useState(0)
   const [grindCombo, setGrindCombo] = useState(0)
-  const [wallClinging, setWallClinging] = useState(false)
+  const [wallClingSide, setWallClingSide] = useState<-1 | 0 | 1>(0) // 0 = not gripping a wall
 
   // Graffiti interaction states
   const [blackbook, setBlackbook] = useState<GraffitiArt[]>(() => {
@@ -160,6 +224,8 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
       x: 72,
       y: gameConfig.groundLevel - gameConfig.playerSize,
       velocityY: 0,
+      velocityX: 0,
+      facing: 1,
       isJumping: false,
       isDucking: false,
       width: gameConfig.playerSize,
@@ -180,13 +246,28 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
   const speedRef = useRef(BASE_CONFIG.initialSpeed)
   const [gameActive, setGameActive] = useState(true)
 
-  const { updateDinosaurPosition, jump, checkCollision } = usePhysics(gameConfig)
+  const { updateDinosaurPosition, checkCollision } = usePhysics(gameConfig)
 
-  const getSpawnDelay = useCallback((speed: number) => {
-    const min = Math.max(620, 900 - speed * 28)
-    const max = Math.max(1180, 1550 - speed * 32)
-    return min + Math.random() * (max - min)
-  }, [])
+  // Distance (px) until the next spawn. The runner converts a minimum *time* between
+  // obstacles (longer than a full jump) into pixels, so there is always room to land and
+  // react at any speed; the free mode uses plain distances because the player sets the pace.
+  const getSpawnGap = useCallback(
+    (speed: number) => {
+      if (mode === 'free') {
+        const phaseFactor = 1 - 0.08 * (phaseRef.current - 1)
+        return (FREE_TUNING.minGap + Math.random() * (FREE_TUNING.maxGap - FREE_TUNING.minGap)) * phaseFactor
+      }
+      const progress = Math.min(
+        1,
+        Math.max(0, (speed - RUNNER_TUNING.initialSpeed) / (RUNNER_TUNING.maxSpeed - RUNNER_TUNING.initialSpeed))
+      )
+      const lerp = ([start, end]: number[]) => start + (end - start) * progress
+      const minMs = lerp(RUNNER_TUNING.minGapMs)
+      const maxMs = lerp(RUNNER_TUNING.maxGapMs)
+      return speed * ((minMs + Math.random() * (maxMs - minMs)) / FRAME_TIME)
+    },
+    [mode]
+  )
 
   const createFloatingPath = useCallback((): Obstacle[] => {
     const containerWidth = gameContainerRef.current?.clientWidth ?? 1200
@@ -240,7 +321,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
 
     // Fase 3 (Telhados): prédios altos que exigem wall-jump para escalar.
     if (phaseRef.current === 3 && Math.random() < 0.26) {
-      const height = 132 + Math.floor(Math.random() * 84) // 132–216px: os mais altos exigem parede
+      const height = 100 + Math.floor(Math.random() * 77) // 100–176px: os mais altos pedem wall-jump
       return {
         id: obstacleCounterRef.current++,
         x: containerWidth + 20,
@@ -328,7 +409,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     if (spawnBird) {
       const birdHeight = 28
       const birdWidth = 46
-      const birdY = gameConfig.groundLevel - 96
+      const birdY = gameConfig.groundLevel - BIRD_ALTITUDE
       return {
         id: obstacleCounterRef.current++,
         x: containerWidth + 20,
@@ -353,120 +434,71 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     }
   }, [gameConfig.groundLevel, gameConfig.obstacleHeight, gameConfig.obstacleWidth])
 
-  const handleJump = useCallback(() => {
-    if (gameActive && !gameOverRef.current) {
-      jumpBufferRef.current = JUMP_BUFFER_MS
-
-      const onGround =
-        dinosaurRef.current.y + dinosaurRef.current.height >= gameConfig.groundLevel - 1
-      const jumpPowerMultiplier = jumpBoostTimerRef.current > 0 ? JUMP_BOOST_MULTIPLIER : 1
-
-      // Wall-jump: launch off a wall we're currently gripping (Hollow Knight).
-      if (wallClingRef.current) {
-        const wallJumped = {
-          ...dinosaurRef.current,
-          isDucking: false,
-          isWallClinging: false,
-          height: gameConfig.playerSize,
-          velocityY: -(gameConfig.jumpPower * WALL_JUMP_POWER_MULT * jumpPowerMultiplier),
-          isJumping: true,
-        }
-        dinosaurRef.current = wallJumped
-        wallClingRef.current = false
-        wallClingTimerRef.current = 0
-        dashLungeRef.current = Math.max(dashLungeRef.current, 74) // hop forward, over the ledge
-        jumpsUsedRef.current = 1
-        jumpBufferRef.current = 0
-        setDinosaur(wallJumped)
-        return
-      }
-
-      if (onGround) {
-        const jumped = jump(
-          {
-            ...dinosaurRef.current,
-            isDucking: false,
-            height: gameConfig.playerSize,
-            y: gameConfig.groundLevel - gameConfig.playerSize,
-            velocityY: -(gameConfig.jumpPower * jumpPowerMultiplier),
-          },
-          false
-        )
-        dinosaurRef.current = jumped
-        jumpsUsedRef.current = 1
-        setDinosaur(jumped)
-        jumpBufferRef.current = 0
-        return
-      }
-
-      const maxJumps = jumpBoostTimerRef.current > 0 ? 2 : 1
-      if (jumpsUsedRef.current < maxJumps) {
-        const doubleJumped = jump(
-          {
-            ...dinosaurRef.current,
-            isDucking: false,
-            height: gameConfig.playerSize,
-            velocityY: -(gameConfig.jumpPower * jumpPowerMultiplier),
-          },
-          true
-        )
-        dinosaurRef.current = doubleJumped
-        jumpsUsedRef.current += 1
-        setDinosaur(doubleJumped)
-        jumpBufferRef.current = 0
-      }
-    }
-  }, [gameActive, gameConfig.groundLevel, gameConfig.playerSize, jump])
-
-  const handleDuckStart = useCallback(() => {
-    if (!gameActive || gameOverRef.current) return
-
-    setDinosaur((prev) => {
-      const onGround = prev.y + prev.height >= gameConfig.groundLevel - 1
-      if (!onGround || prev.isJumping || prev.isDucking) {
-        return prev
-      }
-
-      const next = {
-        ...prev,
-        isDucking: true,
-        height: DUCK_HEIGHT,
-        y: gameConfig.groundLevel - DUCK_HEIGHT,
-      }
-      dinosaurRef.current = next
-      return next
-    })
-  }, [gameActive, gameConfig.groundLevel])
-
-  const handleDuckEnd = useCallback(() => {
-    if (!gameActive || gameOverRef.current) return
-
-    setDinosaur((prev) => {
-      if (!prev.isDucking) return prev
-
-      const next = {
-        ...prev,
+  // Starts a jump from where the player stands, standing up first if ducked (feet stay put,
+  // so jumping from a train roof or while ducked doesn't sink into the floor).
+  const launchJump = useCallback(
+    (dino: DinosaurState, power: number): DinosaurState => {
+      const y = dino.y + dino.height - gameConfig.playerSize
+      jumpTakeoffYRef.current = y
+      jumpCutArmedRef.current = true
+      jumpBufferRef.current = 0
+      coyoteTimeRef.current = 0
+      groundedRef.current = false
+      return {
+        ...dino,
+        y,
         isDucking: false,
         height: gameConfig.playerSize,
-        y: gameConfig.groundLevel - gameConfig.playerSize,
+        velocityY: -power,
+        isJumping: true,
       }
-      dinosaurRef.current = next
-      return next
-    })
-  }, [gameActive, gameConfig.groundLevel, gameConfig.playerSize])
+    },
+    [gameConfig.playerSize]
+  )
 
-  // Variable jump height: releasing the button early clips an upward jump short (Mario).
-  const handleJumpEnd = useCallback(() => {
+  const handleJump = useCallback(() => {
+    jumpHeldRef.current = true
     if (!gameActive || gameOverRef.current) return
-    if (dinosaurRef.current.velocityY < 0 && !wallClingRef.current) {
-      const clipped = {
-        ...dinosaurRef.current,
-        velocityY: dinosaurRef.current.velocityY * JUMP_CUT_MULTIPLIER,
+    jumpBufferRef.current = JUMP_BUFFER_MS
+
+    const jumpPowerMultiplier = jumpBoostTimerRef.current > 0 ? JUMP_BOOST_MULTIPLIER : 1
+
+    // Wall-jump: launch off a wall we're currently gripping (Hollow Knight).
+    if (wallClingRef.current) {
+      const wallJumped: DinosaurState = {
+        ...launchJump(dinosaurRef.current, gameConfig.jumpPower * WALL_JUMP_POWER_MULT * jumpPowerMultiplier),
+        isWallClinging: false,
       }
-      dinosaurRef.current = clipped
-      setDinosaur(clipped)
+      if (mode === 'free') {
+        wallJumped.velocityX = -wallSideRef.current * FREE_TUNING.wallKick
+      } else {
+        dashLungeRef.current = Math.max(dashLungeRef.current, 74) // hop forward, over the ledge
+      }
+      dinosaurRef.current = wallJumped
+      wallClingRef.current = false
+      wallClingTimerRef.current = 0
+      jumpsUsedRef.current = 1
+      setDinosaur(wallJumped)
+      return
     }
-  }, [gameActive])
+
+    // Ground jump, or the extra mid-air jump from the Super Pulo power-up. Only the ground
+    // jump gets the power-up boost, so a boosted double jump can't fly off the screen.
+    const grounded = groundedRef.current
+    const maxJumps = jumpBoostTimerRef.current > 0 ? 2 : 1
+    if (grounded || jumpsUsedRef.current < maxJumps) {
+      const power = grounded ? gameConfig.jumpPower * jumpPowerMultiplier : gameConfig.jumpPower
+      const jumped = launchJump(dinosaurRef.current, power)
+      dinosaurRef.current = jumped
+      jumpsUsedRef.current = grounded ? 1 : jumpsUsedRef.current + 1
+      setDinosaur(jumped)
+    }
+  }, [gameActive, gameConfig.jumpPower, launchJump, mode])
+
+  // Variable jump height (Mario): the loop clips the rise once the button is released.
+  const handleJumpEnd = useCallback(() => {
+    jumpHeldRef.current = false
+  }, [])
 
   // Dash / esquiva: brief forward lunge with i-frames and a cooldown (Hollow Knight / Subway roll).
   const handleDash = useCallback(() => {
@@ -474,7 +506,8 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     if (dashCooldownRef.current > 0 || dashTimerRef.current > 0) return
     dashTimerRef.current = DASH_DURATION_MS
     dashCooldownRef.current = DASH_COOLDOWN_MS
-    dashLungeRef.current = DASH_LUNGE
+    // The free mode dashes through velocityX in the loop instead of the runner's lunge.
+    dashLungeRef.current = mode === 'runner' ? DASH_LUNGE : 0
     const dashing = {
       ...dinosaurRef.current,
       isDashing: true,
@@ -482,9 +515,11 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     }
     dinosaurRef.current = dashing
     setDinosaur(dashing)
-  }, [gameActive])
+  }, [gameActive, mode])
 
-  useGameInput(handleJump, handleDuckStart, handleDuckEnd, handleJumpEnd, handleDash)
+  // Ducking is polled every frame from the held input, so it also works when landing with
+  // the key already down.
+  const { held } = useGameInput({ onJump: handleJump, onJumpEnd: handleJumpEnd, onDash: handleDash })
 
   const handleAcceptArtist = useCallback(() => {
     if (!currentArtist) return
@@ -549,6 +584,8 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
   useEffect(() => {
     const updateGroundLevel = () => {
       const containerHeight = gameContainerRef.current?.clientHeight ?? 700
+      // Cached so the free-mode camera doesn't read layout every frame.
+      containerWidthRef.current = gameContainerRef.current?.clientWidth ?? 1200
       // Keep physics ground aligned with the visible top of the floor layer.
       const nextGroundLevel = Math.round(containerHeight * 0.76)
       setGroundLevel(nextGroundLevel)
@@ -591,36 +628,13 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
   useEffect(() => {
     if (!gameActive) return
 
-    gameOverRef.current = false
-    setCoins(0)
-    coinsRef.current = 0
-    setSignatures([])
-    signaturesRef.current = []
-    setSkateFlickering(false)
-    setSkateTimeLeftMs(0)
-    setLightningTimeLeftMs(0)
-    setJumpBoostTimeLeftMs(0)
+    // Game remounts for every run, so refs and state already start fresh. This effect only
+    // (re)starts the loop, so resuming after a graffiti encounter no longer wipes the coins,
+    // signatures and power-ups collected so far.
     lastTimeRef.current = 0
-    spawnTimerRef.current = 0
-    skateTimerRef.current = 0
-    skateFlickerEndTimeRef.current = 0
-    lightningTimerRef.current = 0
-    jumpBoostTimerRef.current = 0
-    jumpsUsedRef.current = 0
-    dashTimerRef.current = 0
-    dashCooldownRef.current = 0
-    dashLungeRef.current = 0
-    grindTimerRef.current = 0
-    grindComboRef.current = 0
-    wallClingRef.current = false
-    wallClingTimerRef.current = 0
-    phaseRef.current = 1
-    setPhase(1)
-    setDashActive(false)
-    setDashCooldownMs(0)
-    setGrindCombo(0)
-    setWallClinging(false)
-    nextSpawnDelayRef.current = getSpawnDelay(speedRef.current)
+    if (!nextSpawnGapRef.current) {
+      nextSpawnGapRef.current = getSpawnGap(speedRef.current) * 0.5
+    }
 
     const gameLoop = (timestamp: number) => {
       if (gameOverRef.current) return
@@ -647,31 +661,80 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
         phaseRef.current = currentPhase
         setPhase(currentPhase)
       }
-      const phaseMaxSpeed = gameConfig.maxSpeed + PHASE_SPEED_BONUS[currentPhase - 1]
+      const phaseMaxSpeed = gameConfig.maxSpeed + RUNNER_TUNING.phaseSpeedBonus[currentPhase - 1]
 
-      speedRef.current = Math.min(phaseMaxSpeed, speedRef.current + deltaMs * 0.00075)
+      speedRef.current = Math.min(phaseMaxSpeed, speedRef.current + deltaMs * RUNNER_TUNING.accelerationPerMs)
       const dashing = dashTimerRef.current > 0
       const invincible = lightningTimerRef.current > 0 || dashing
-      const effectiveSpeed =
-        skateTimerRef.current > 0 || lightningTimerRef.current > 0
-          ? speedRef.current * SKATE_SPEED_MULTIPLIER
-          : speedRef.current
+      const speedBoost =
+        skateTimerRef.current > 0 || lightningTimerRef.current > 0 ? SKATE_SPEED_MULTIPLIER : 1
+      const effectiveSpeed = speedRef.current * speedBoost
+      const input = held.current
+      const moveAxis = mode === 'free' ? Number(input.right) - Number(input.left) : 0
 
       const previousDino = dinosaurRef.current
+      let wallContact: -1 | 0 | 1 = 0
+
+      if (mode === 'free') {
+        // Walk with a little acceleration, keep momentum in the air, and stop at buildings.
+        let velocityX = previousDino.velocityX ?? 0
+        const facing = moveAxis !== 0 ? (moveAxis as 1 | -1) : previousDino.facing ?? 1
+        if (dashing) {
+          velocityX = facing * FREE_TUNING.dashSpeed
+        } else {
+          const crouchFactor = previousDino.isDucking ? FREE_TUNING.crouchSpeedFactor : 1
+          const topSpeed = FREE_TUNING.walkSpeed * speedBoost * crouchFactor
+          const grounded = groundedRef.current
+          const rate =
+            moveAxis !== 0
+              ? grounded ? FREE_TUNING.groundAcceleration : FREE_TUNING.airAcceleration
+              : grounded ? FREE_TUNING.groundDeceleration : FREE_TUNING.airDeceleration
+          velocityX = approach(velocityX, moveAxis * topSpeed, rate * deltaFactor)
+        }
+
+        const moved = moveAgainstBuildings(previousDino, velocityX * deltaFactor, obstaclesRef.current)
+        wallContact = moved.wallContact
+        if (wallContact !== 0) velocityX = 0
+        let x = previousDino.x + moved.dx
+        if (x < FREE_TUNING.leftLimit) {
+          x = FREE_TUNING.leftLimit
+          velocityX = Math.max(0, velocityX)
+        }
+        dinosaurRef.current = { ...previousDino, x, velocityX, facing }
+      }
+
       if (dashing) {
         // Air-hover during the dash: freeze vertical velocity and glide.
         dinosaurRef.current = { ...dinosaurRef.current, velocityY: 0, isDashing: true }
       } else {
-        dinosaurRef.current = updateDinosaurPosition(dinosaurRef.current, deltaFactor)
+        // Holding down mid-air cancels the rise and drops faster (Chrome dino).
+        const fastFalling = input.down && !groundedRef.current && !wallClingRef.current
+        let dino = dinosaurRef.current
+        if (fastFalling) dino = { ...dino, velocityY: Math.max(dino.velocityY, FAST_FALL_MIN_VELOCITY) }
+        dinosaurRef.current = updateDinosaurPosition(dino, deltaFactor, fastFalling ? FAST_FALL_GRAVITY : 1)
         if (dinosaurRef.current.isDashing) {
           dinosaurRef.current = { ...dinosaurRef.current, isDashing: false }
         }
       }
 
-      // Horizontal lunge (dash / wall-jump hop) eases back to the base lane.
-      dashLungeRef.current *= DASH_LUNGE_DECAY
-      if (dashLungeRef.current < 0.6) dashLungeRef.current = 0
-      dinosaurRef.current = { ...dinosaurRef.current, x: BASE_X + dashLungeRef.current }
+      // Variable jump height: once the button is released the rise is clipped, but never
+      // below MIN_JUMP_HEIGHT, so a quick tap still clears a spray.
+      if (jumpCutArmedRef.current) {
+        const dino = dinosaurRef.current
+        if (dino.velocityY >= 0) {
+          jumpCutArmedRef.current = false
+        } else if (!jumpHeldRef.current && jumpTakeoffYRef.current - dino.y >= MIN_JUMP_HEIGHT) {
+          dinosaurRef.current = { ...dino, velocityY: dino.velocityY * JUMP_CUT_MULTIPLIER }
+          jumpCutArmedRef.current = false
+        }
+      }
+
+      if (mode === 'runner') {
+        // Horizontal lunge (dash / wall-jump hop) eases back to the base lane.
+        dashLungeRef.current *= DASH_LUNGE_DECAY
+        if (dashLungeRef.current < 0.6) dashLungeRef.current = 0
+        dinosaurRef.current = { ...dinosaurRef.current, x: BASE_X + dashLungeRef.current }
+      }
 
       let onPlatform = false
       for (const platform of obstaclesRef.current) {
@@ -703,22 +766,39 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
         }
       }
 
-      // Wall-cling on building left faces (phase 3 verticality).
+      // Wall-cling on building faces (phase 3 verticality). The runner grips the left face it
+      // runs into; the free mode grips whichever face the player is pushing against.
       wallClingRef.current = false
       let touchingWall = false
-      if (!onPlatform && !dashing) {
+      const airborne = dinosaurRef.current.y + dinosaurRef.current.height < gameConfig.groundLevel - 1
+      if (!onPlatform && !dashing && mode === 'free') {
+        if (airborne && wallContact !== 0 && moveAxis === wallContact) {
+          touchingWall = true
+          if (wallClingTimerRef.current < WALL_CLING_MAX_MS) {
+            wallClingRef.current = true
+            wallSideRef.current = wallContact
+            dinosaurRef.current = {
+              ...dinosaurRef.current,
+              velocityY: Math.min(dinosaurRef.current.velocityY, WALL_CLING_SLIDE),
+              isJumping: true,
+              isWallClinging: true,
+            }
+            jumpsUsedRef.current = 0
+          }
+        }
+      } else if (!onPlatform && !dashing) {
         for (const wall of obstaclesRef.current) {
           if (wall.type !== 'building') continue
           const dinoRight = dinosaurRef.current.x + dinosaurRef.current.width
           const dinoBottom = dinosaurRef.current.y + dinosaurRef.current.height
           const dinoTop = dinosaurRef.current.y
-          const airborne = dinoBottom < gameConfig.groundLevel - 1
           const nearLeftFace = dinoRight >= wall.x - 4 && dinoRight <= wall.x + 24
           const withinWallBand = dinoBottom > wall.y + 12 && dinoTop < wall.y + wall.height - 4
           if (airborne && nearLeftFace && withinWallBand) {
             touchingWall = true
             if (wallClingTimerRef.current < WALL_CLING_MAX_MS) {
               wallClingRef.current = true
+              wallSideRef.current = 1
               dinosaurRef.current = {
                 ...dinosaurRef.current,
                 x: wall.x - dinosaurRef.current.width + 2,
@@ -734,8 +814,8 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
       }
       if (wallClingRef.current) {
         wallClingTimerRef.current += deltaMs
-      } else if (!touchingWall) {
-        wallClingTimerRef.current = 0
+      } else {
+        if (!touchingWall) wallClingTimerRef.current = 0
         if (dinosaurRef.current.isWallClinging) {
           dinosaurRef.current = { ...dinosaurRef.current, isWallClinging: false }
         }
@@ -744,6 +824,11 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
       const onGround =
         onPlatform ||
         dinosaurRef.current.y + dinosaurRef.current.height >= gameConfig.groundLevel - 1
+      groundedRef.current = onGround
+      if (!onGround && !dinosaurRef.current.isJumping) {
+        // Walked off a roof or train: show the airborne pose instead of running in mid-air.
+        dinosaurRef.current = { ...dinosaurRef.current, isJumping: true }
+      }
 
       if (onGround) {
         coyoteTimeRef.current = COYOTE_TIME_MS
@@ -751,8 +836,33 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
         wallClingTimerRef.current = 0
       }
 
-      // Grind combo while riding a train/building roof (Jet Set Radio).
-      if (onPlatform) {
+      // Duck while the down key is held on solid ground (train roofs included), stand up
+      // otherwise. The feet stay put, so ducking on a roof doesn't drop through it.
+      const wantsDuck = input.down && onGround
+      if (wantsDuck !== Boolean(dinosaurRef.current.isDucking)) {
+        const height = wantsDuck ? DUCK_HEIGHT : gameConfig.playerSize
+        const bottom = dinosaurRef.current.y + dinosaurRef.current.height
+        dinosaurRef.current = { ...dinosaurRef.current, isDucking: wantsDuck, height, y: bottom - height }
+      }
+
+      if (jumpBufferRef.current > 0 && coyoteTimeRef.current > 0) {
+        const jumpPowerMultiplier = jumpBoostTimerRef.current > 0 ? JUMP_BOOST_MULTIPLIER : 1
+        dinosaurRef.current = launchJump(dinosaurRef.current, gameConfig.jumpPower * jumpPowerMultiplier)
+        jumpsUsedRef.current = 1
+      }
+
+      // How far the world moves this frame: constant in the runner; in the free mode the
+      // camera only follows once the player walks past the camera line.
+      let scroll = effectiveSpeed * deltaFactor
+      if (mode === 'free') {
+        const cameraX = containerWidthRef.current * FREE_TUNING.cameraLine
+        scroll = Math.max(0, dinosaurRef.current.x - cameraX)
+        if (scroll > 0) dinosaurRef.current = { ...dinosaurRef.current, x: cameraX }
+      }
+
+      // Grind combo while riding a train/building roof (Jet Set Radio). It only counts while
+      // the world moves, so the free mode can't farm it by standing or pacing on a roof.
+      if (onPlatform && scroll > 0) {
         grindTimerRef.current += deltaMs
         while (grindTimerRef.current >= GRIND_TICK_MS) {
           grindTimerRef.current -= GRIND_TICK_MS
@@ -764,41 +874,42 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
         if (onGround) grindComboRef.current = 0
       }
 
-      if (dinosaurRef.current.isDucking && !onGround) {
-        dinosaurRef.current = {
-          ...dinosaurRef.current,
-          isDucking: false,
-          height: gameConfig.playerSize,
-        }
-      }
-
-      if (jumpBufferRef.current > 0 && coyoteTimeRef.current > 0) {
-        dinosaurRef.current = jump(dinosaurRef.current)
-        jumpBufferRef.current = 0
-        coyoteTimeRef.current = 0
-        jumpsUsedRef.current = 1
-      }
-
-      spawnTimerRef.current += deltaMs
-      if (spawnTimerRef.current >= nextSpawnDelayRef.current) {
+      spawnDistanceRef.current += scroll
+      if (spawnDistanceRef.current >= nextSpawnGapRef.current) {
         const shouldSpawnPath =
           scoreRef.current >= 500 &&
           Math.random() < 0.18 &&
           !obstaclesRef.current.some((obs) => obs.type === 'floating-platform' || obs.type === 'train')
 
-        obstaclesRef.current = shouldSpawnPath
-          ? [...obstaclesRef.current, ...createFloatingPath()]
-          : [...obstaclesRef.current, createObstacle()]
-        spawnTimerRef.current = 0
-        nextSpawnDelayRef.current = shouldSpawnPath
-          ? getSpawnDelay(speedRef.current) * 1.25
-          : getSpawnDelay(speedRef.current)
+        const gap = getSpawnGap(effectiveSpeed)
+        if (shouldSpawnPath) {
+          // Nothing else spawns until the whole train line has scrolled in.
+          const path = createFloatingPath()
+          const pathLength = path
+            .filter((obs) => obs.type === 'train')
+            .reduce((length, train) => length + train.width, 0)
+          obstaclesRef.current = [...obstaclesRef.current, ...path]
+          nextSpawnGapRef.current = pathLength + gap
+        } else {
+          const obstacle = createObstacle()
+          if (mode === 'free' && obstacle.type === 'bird') {
+            // Birds fly toward the player: spawn them further out so that, for someone walking
+            // at full speed, they arrive spaced like any other obstacle.
+            const cameraX = containerWidthRef.current * FREE_TUNING.cameraLine
+            obstacle.x += ((obstacle.x - cameraX) * FREE_TUNING.birdDrift) / FREE_TUNING.walkSpeed
+          }
+          obstaclesRef.current = [...obstaclesRef.current, obstacle]
+          nextSpawnGapRef.current = gap
+        }
+        spawnDistanceRef.current = 0
       }
 
+      const birdDrift = mode === 'free' ? FREE_TUNING.birdDrift * deltaFactor : 0
+      let encounterStarted = false
       obstaclesRef.current = obstaclesRef.current
         .map((obs: Obstacle) => ({
           ...obs,
-          x: obs.x - effectiveSpeed * deltaFactor,
+          x: obs.x - scroll - (obs.type === 'bird' ? birdDrift : 0),
         }))
         .filter((obs: Obstacle) => obs.x + obs.width > -10)
         .flatMap((obs: Obstacle) => {
@@ -817,6 +928,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
               setCurrentArtist(obs.graffitiArtist)
               setInteractionStage('dialog')
               artistEncounterRef.current = obs.id.toString()
+              encounterStarted = true
             }
             return []
           }
@@ -847,16 +959,18 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
             const jumpBoostMultiplier = jumpBoostTimerRef.current > 0 ? JUMP_BOOST_MULTIPLIER : 1
             const travelDistance = nextPlatform ? Math.max(0, nextPlatform.x - dinosaurRef.current.x) : 0
             const travelFrames = travelDistance > 0 ? travelDistance / Math.max(1, effectiveSpeed) : 0
-            const trampolineMultiplier = nextPlatform
-              ? Math.min(TRAMPOLINE_BOOST, Math.max(1, 1 + travelFrames / 220))
-              : 1.04
-            dinosaurRef.current = {
-              ...dinosaurRef.current,
-              isDucking: false,
-              height: gameConfig.playerSize,
-              velocityY: -gameConfig.jumpPower * trampolineMultiplier * jumpBoostMultiplier,
-              isJumping: true,
-            }
+            // The free mode has no scroll speed to aim with, so it always gets the full bounce.
+            const trampolineMultiplier =
+              mode === 'free'
+                ? TRAMPOLINE_BOOST
+                : nextPlatform
+                ? Math.min(TRAMPOLINE_BOOST, Math.max(1, 1 + travelFrames / 220))
+                : 1.04
+            dinosaurRef.current = launchJump(
+              dinosaurRef.current,
+              gameConfig.jumpPower * trampolineMultiplier * jumpBoostMultiplier
+            )
+            jumpCutArmedRef.current = false // a bounce is not a button jump: releasing can't clip it
             jumpsUsedRef.current = 1
             return []
           }
@@ -878,9 +992,17 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
           return obs
         })
 
+      if (encounterStarted) {
+        // Pause right here; the loop restarts when the encounter ends.
+        setDinosaur(dinosaurRef.current)
+        setObstacles(obstaclesRef.current)
+        return
+      }
+
       // A building only kills when the player is embedded in its wall (rammed at
-      // ground level), never when landing on the roof or gripping the face.
-      const buildingEmbedded = obstaclesRef.current.some((obs: Obstacle) => {
+      // ground level), never when landing on the roof or gripping the face. In the free
+      // mode buildings are solid walls instead, so they never kill.
+      const buildingEmbedded = mode === 'runner' && obstaclesRef.current.some((obs: Obstacle) => {
         if (obs.type !== 'building') return false
         const dLeft = dinosaurRef.current.x + 6
         const dRight = dinosaurRef.current.x + dinosaurRef.current.width - 6
@@ -963,7 +1085,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
       setDashActive(dashTimerRef.current > 0)
       setDashCooldownMs(dashCooldownRef.current)
       setGrindCombo(grindComboRef.current)
-      setWallClinging(wallClingRef.current)
+      setWallClingSide(wallClingRef.current ? wallSideRef.current : 0)
 
       gameLoopRef.current = requestAnimationFrame(gameLoop)
     }
@@ -981,10 +1103,13 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     createFloatingPath,
     gameActive,
     gameConfig.groundLevel,
+    gameConfig.jumpPower,
     gameConfig.maxSpeed,
     gameConfig.playerSize,
-    getSpawnDelay,
-    jump,
+    getSpawnGap,
+    held,
+    launchJump,
+    mode,
     onGameOver,
     updateDinosaurPosition,
   ])
@@ -1031,6 +1156,10 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
     Math.max(0, (score - BACKGROUND_TRANSITION_START) / (BACKGROUND_TRANSITION_END - BACKGROUND_TRANSITION_START))
   )
   const isNight = phase >= 2
+  const modeInfo = GAME_MODES[mode]
+  // Gripping a wall turns the sprite away from it; otherwise it faces the walking direction.
+  const visualFacing = wallClingSide !== 0 ? (-wallClingSide as 1 | -1) : dinosaur.facing ?? 1
+  const isMoving = mode === 'runner' || Math.abs(dinosaur.velocityX ?? 0) > 0.3
 
   return (
     <div className={`game-wrapper ${isNight ? 'is-night' : ''} phase-${phase}`}>
@@ -1056,9 +1185,22 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
           hasSkate={skateTimeLeftMs > 0}
           skateFlickering={skateFlickering}
           isDashing={dashActive}
-          isWallClinging={wallClinging}
+          isWallClinging={wallClingSide !== 0}
+          facing={visualFacing}
+          isMoving={isMoving}
         />
         <Obstacles obstacles={obstacles} />
+
+        <div className="controls-hint" aria-hidden="true">
+          <span className="controls-hint-title">
+            {modeInfo.icon} {modeInfo.title}
+          </span>
+          {modeInfo.controls.map(([keys, action]) => (
+            <span key={keys} className="controls-hint-item">
+              <strong>{keys}</strong> {action}
+            </span>
+          ))}
+        </div>
 
         {grindCombo > 1 && (
           <div className="grind-combo" aria-hidden="true">
@@ -1068,6 +1210,7 @@ export default function Game({ selectedMusic, onGameOver }: GameProps) {
         )}
 
         <HUD
+          mode={mode}
           score={score}
           coins={coins}
           totalCoins={totalCoins}

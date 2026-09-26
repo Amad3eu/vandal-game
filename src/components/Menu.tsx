@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import './Menu.css'
 import type { MusicOption } from '../App'
+import type { GameMode } from '../types/game'
+import { GAME_MODES, GAME_MODE_ORDER } from '../data/gameModes'
 
 interface MenuProps {
   gameOver?: boolean
   finalScore?: number
   highScore: number
+  selectedMode: GameMode
+  onModeChange: (mode: GameMode) => void
   selectedMusic: MusicOption
   onMusicChange: (music: MusicOption) => void
   onStart: () => void
@@ -18,6 +22,8 @@ export default function Menu({
   gameOver = false,
   finalScore = 0,
   highScore,
+  selectedMode,
+  onModeChange,
   selectedMusic,
   onMusicChange,
   onStart,
@@ -26,6 +32,7 @@ export default function Menu({
   onOpenBlackbook,
 }: MenuProps) {
   const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const modeInfo = GAME_MODES[selectedMode]
 
   const totalCoins = (() => {
     const saved = localStorage.getItem('dinoGameTotalCoins')
@@ -74,6 +81,29 @@ export default function Menu({
           </div>
         </div>
 
+        <div className="mode-picker">
+          <h3>Modo de Jogo</h3>
+          <div className="mode-options">
+            {GAME_MODE_ORDER.map((mode) => {
+              const info = GAME_MODES[mode]
+              const isSelected = mode === selectedMode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={isSelected}
+                  className={`mode-option ${isSelected ? 'active' : ''}`}
+                  onClick={() => onModeChange(mode)}
+                >
+                  <span className="mode-option-icon" aria-hidden="true">{info.icon}</span>
+                  <span className="mode-option-title">{info.title}</span>
+                  <span className="mode-option-tagline">{info.tagline}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="music-picker">
           <h3>Musica</h3>
           <select
@@ -103,14 +133,14 @@ export default function Menu({
         </div>
 
         <div className="menu-instructions">
-          <h3>Como Jogar</h3>
+          <h3>Como Jogar · {modeInfo.title}</h3>
           <ul>
-            <li><strong>ESPAÇO</strong> ou <strong>SETA PARA CIMA</strong> - Pular</li>
-            <li><strong>SETA PARA BAIXO</strong> ou <strong>S</strong> - Abaixar</li>
-            <li><strong>CLIQUE/TOQUE</strong> - Pular (no celular)</li>
+            {modeInfo.controls.map(([keys, action]) => (
+              <li key={keys}><strong>{keys}</strong> - {action}</li>
+            ))}
             <li>Desvie dos obstáculos para marcar pontos</li>
             <li>Pegue o <strong>SKATE</strong> para ganhar velocidade por 15 segundos</li>
-            <li>A velocidade aumenta com o tempo</li>
+            <li>{modeInfo.tip}</li>
           </ul>
         </div>
       </div>

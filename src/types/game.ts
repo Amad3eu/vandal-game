@@ -43,6 +43,9 @@ export interface Obstacle {
 
 export type GamePhase = 1 | 2 | 3
 
+/** 'runner' = estilo dino do Google (o cenário vem até você); 'free' = andar livre com WASD. */
+export type GameMode = 'runner' | 'free'
+
 export interface PhaseInfo {
   id: GamePhase
   name: string
@@ -57,6 +60,9 @@ export interface DinosaurState {
   isDucking?: boolean
   isDashing?: boolean
   isWallClinging?: boolean
+  /** Horizontal speed (px/frame); only the free mode moves the player sideways. */
+  velocityX?: number
+  facing?: 1 | -1
   width: number
   height: number
 }
@@ -66,6 +72,9 @@ export interface GameConfig {
   groundLevel: number
   jumpPower: number
   gravity: number
+  /** Gravity multipliers while rising / falling (lower = floatier arc). */
+  riseGravityScale: number
+  fallGravityScale: number
   obstacleWidth: number
   obstacleHeight: number
   initialSpeed: number

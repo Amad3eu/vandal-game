@@ -3,11 +3,17 @@ import Game from './components/Game'
 import Menu from './components/Menu'
 import Blackbook from './components/Blackbook'
 import FeedbackWidget from './components/FeedbackWidget'
-import { GraffitiArt } from './types/game'
+import { GAME_MODES } from './data/gameModes'
+import { GameMode, GraffitiArt } from './types/game'
 import './App.css'
 
 type GameState = 'menu' | 'playing' | 'gameover'
 export type MusicOption = 'none' | 'theme'
+
+const readHighScore = (mode: GameMode) => {
+  const saved = localStorage.getItem(GAME_MODES[mode].highScoreKey)
+  return saved ? parseInt(saved) : 0
+}
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>('menu')
@@ -16,10 +22,15 @@ export default function App() {
     const saved = localStorage.getItem('dinoGameMusic') as MusicOption | null
     return saved ?? 'theme'
   })
-  const [highScore, setHighScore] = useState(() => {
-    const saved = localStorage.getItem('dinoGameHighScore')
-    return saved ? parseInt(saved) : 0
-  })
+  const [selectedMode, setSelectedMode] = useState<GameMode>(() =>
+    localStorage.getItem('dinoGameMode') === 'free' ? 'free' : 'runner'
+  )
+  // Each mode keeps its own record: the free mode is paced by the player, so the scores differ.
+  const [highScores, setHighScores] = useState<Record<GameMode, number>>(() => ({
+    runner: readHighScore('runner'),
+    free: readHighScore('free'),
+  }))
+  const highScore = highScores[selectedMode]
   const [blackbook, setBlackbook] = useState<GraffitiArt[]>(() => {
     const saved = localStorage.getItem('dinoGameBlackbook')
     return saved ? JSON.parse(saved) : []
@@ -34,10 +45,15 @@ export default function App() {
   const handleGameOver = (finalScore: number) => {
     setScore(finalScore)
     if (finalScore > highScore) {
-      setHighScore(finalScore)
-      localStorage.setItem('dinoGameHighScore', finalScore.toString())
+      setHighScores((prev) => ({ ...prev, [selectedMode]: finalScore }))
+      localStorage.setItem(GAME_MODES[selectedMode].highScoreKey, finalScore.toString())
     }
     setGameState('gameover')
+  }
+
+  const handleModeChange = (mode: GameMode) => {
+    setSelectedMode(mode)
+    localStorage.setItem('dinoGameMode', mode)
   }
 
   const handleReturnToMenu = () => {
@@ -64,6 +80,8 @@ export default function App() {
       {gameState === 'menu' && (
         <Menu
           highScore={highScore}
+          selectedMode={selectedMode}
+          onModeChange={handleModeChange}
           selectedMusic={selectedMusic}
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
@@ -73,6 +91,8 @@ export default function App() {
       )}
       {gameState === 'playing' && (
         <Game
+          mode={selectedMode}
+          highScore={highScore}
           selectedMusic={selectedMusic}
           onGameOver={handleGameOver}
         />
@@ -82,6 +102,8 @@ export default function App() {
           gameOver
           finalScore={score}
           highScore={highScore}
+          selectedMode={selectedMode}
+          onModeChange={handleModeChange}
           selectedMusic={selectedMusic}
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}

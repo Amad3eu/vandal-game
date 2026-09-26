@@ -112,9 +112,33 @@ Os arquivos otimizados será gerados na pasta `dist/`
 
 ## 🎮 Como Jogar
 
-- **Iniciar**: Clique em "Start Game" no menu
-- **Pular**: Pressione `ESPAÇO` ou `SETA PARA CIMA` (desktop) ou `CLIQUE/TAP` (mobile)
-- **Objetivo**: Desvie dos obstáculos o máximo de tempo possível para ganhar pontos
+No menu, escolha o **Modo de Jogo** e clique em "Iniciar Jogo". Cada modo guarda o seu próprio recorde.
+
+**Objetivo**: desvie dos obstáculos o máximo possível para ganhar pontos.
+
+### 🏃 Corrida (estilo dino do Google)
+
+O cenário vem até você e a velocidade aumenta com o tempo.
+
+| Tecla | Ação |
+| --- | --- |
+| `ESPAÇO` / `W` / `↑` | Pular (segure para ir mais alto) |
+| `S` / `↓` | Abaixar · no ar, desce mais rápido |
+| `SHIFT` / `X` | Dash: fica invencível por um instante |
+| `CLIQUE` / `TOQUE` | Pular (no celular) |
+
+### 🕹️ Livre (WASD)
+
+Você controla a caminhada: o cenário só avança quando você anda. Por enquanto precisa de teclado.
+
+| Tecla | Ação |
+| --- | --- |
+| `A` / `D` ou `←` / `→` | Andar |
+| `W` / `ESPAÇO` / `↑` | Pular (segure para ir mais alto) |
+| `S` / `↓` | Abaixar e andar agachado · no ar, desce mais rápido |
+| `SHIFT` / `X` | Dash na direção em que está olhando |
+
+Na fase 3 (Telhados), encoste na parede de um prédio no ar e pule de novo para fazer o wall-jump.
 
 ## 🏗️ Estrutura do Projeto
 
@@ -131,6 +155,8 @@ src/
 │   ├── Menu.css
 │   ├── HUD.tsx            # Placar e informações
 │   └── HUD.css
+├── data/
+│   └── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
 ├── hooks/
 │   ├── usePhysics.ts      # Lógica de física do jogo
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
@@ -161,17 +187,12 @@ O jogo se adapta automaticamente para:
 
 ### Ajustar Dificuldade
 
-Edite `src/components/Game.tsx` e modifique `GAME_CONFIG`:
+Os números de cada modo ficam em `src/data/gameModes.ts`:
 
-```typescript
-const GAME_CONFIG: GameConfig = {
-  jumpPower: 20,      // Altura do pulo
-  gravity: 0.8,       // Força da gravidade
-  initialSpeed: 5,    // Velocidade inicial
-  maxSpeed: 15,       // Velocidade máxima
-  scrollSpeed: 5,     // Velocidade de movimento dos obstáculos
-}
-```
+- `RUNNER_TUNING` (Corrida): velocidade inicial e máxima, aceleração e o tempo mínimo entre obstáculos
+- `FREE_TUNING` (Livre): velocidade de caminhada, aceleração, controle no ar e distância entre obstáculos
+
+O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/components/Game.tsx`, e as hitboxes em `src/hooks/usePhysics.ts`.
 
 ### Cores e Temas
 

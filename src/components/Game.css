@@ -109,6 +109,53 @@
   z-index: 3;
 }
 
+/* Controls reminder at the start of a run; fades out on its own. */
+.controls-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 5%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  width: max-content;
+  max-width: min(860px, calc(100% - 200px)); /* clears the feedback button in the corner */
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  pointer-events: none;
+  animation: controlsHintFade 7s ease forwards;
+}
+
+.controls-hint-title {
+  width: 100%;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.controls-hint-item strong {
+  color: #fde68a;
+  margin-right: 4px;
+}
+
+@keyframes controlsHintFade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 .obstacles {
   z-index: 2;
 }
@@ -275,6 +322,12 @@
   .game-container {
     max-width: none;
     height: 100vh;
+  }
+
+  .controls-hint {
+    bottom: 96px;
+    max-width: calc(100% - 32px);
+    font-size: 0.78rem;
   }
 
   .game-over-message {

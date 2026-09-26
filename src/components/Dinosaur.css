@@ -23,7 +23,7 @@
   opacity: 0.65;
 }
 
-.dinosaur.running:not(.jumping):not(.ducking) {
+.dinosaur.running:not(.jumping):not(.ducking):not(.idle) {
   animation: runBounce 0.42s ease-in-out infinite;
 }
 
@@ -189,12 +189,32 @@
 .dash-trail-2 { transform: translateX(-34px) scaleX(0.8); opacity: 0.35; }
 .dash-trail-3 { transform: translateX(-54px) scaleX(0.7); opacity: 0.18; }
 
+/* ---- Facing left (free mode walking back, or gripping a wall on the right) ---- */
+.dinosaur.facing-left .state-character,
+.dinosaur.facing-left .run-frame {
+  transform: translateX(-50%) scaleX(-1);
+}
+
+.dinosaur.facing-left .dash-trail {
+  background: linear-gradient(270deg, rgba(80, 220, 255, 0.55), rgba(80, 220, 255, 0));
+}
+
+.dinosaur.facing-left .dash-trail-1 { transform: translateX(16px) scaleX(0.9); }
+.dinosaur.facing-left .dash-trail-2 { transform: translateX(34px) scaleX(0.8); }
+.dinosaur.facing-left .dash-trail-3 { transform: translateX(54px) scaleX(0.7); }
+
 /* ---- Wall-cling (Hollow Knight) ---- */
 .dinosaur.wall-clinging {
   filter: drop-shadow(-6px 0 8px rgba(0, 0, 0, 0.35));
 }
 
+/* translateX(-50%) keeps the sprite centered, like the base .run-frame rule. */
 .dinosaur.wall-clinging .state-character,
 .dinosaur.wall-clinging .run-frame {
-  transform: scaleX(-1) rotate(-4deg);
+  transform: translateX(-50%) rotate(-4deg);
+}
+
+.dinosaur.wall-clinging.facing-left .state-character,
+.dinosaur.wall-clinging.facing-left .run-frame {
+  transform: translateX(-50%) scaleX(-1) rotate(-4deg);
 }

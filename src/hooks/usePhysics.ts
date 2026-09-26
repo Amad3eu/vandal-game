@@ -1,14 +1,17 @@
 import { useCallback } from 'react'
 import { DinosaurState, GameConfig, Obstacle } from '../types/game'
 
+const PLAYER_HITBOX_INSET_X = 20
+const PLAYER_HITBOX_INSET_BOTTOM = 6
+
 export function usePhysics(config: GameConfig) {
   const updateDinosaurPosition = useCallback(
-    (dino: DinosaurState, deltaFactor = 1): DinosaurState => {
+    (dino: DinosaurState, deltaFactor = 1, gravityMultiplier = 1): DinosaurState => {
       let velocityY = dino.velocityY
 
       // Apply dynamic gravity: softer ascent, faster fall.
-      const gravityScale = velocityY < 0 ? 0.72 : 1.22
-      velocityY += config.gravity * gravityScale * deltaFactor
+      const gravityScale = velocityY < 0 ? config.riseGravityScale : config.fallGravityScale
+      velocityY += config.gravity * gravityScale * gravityMultiplier * deltaFactor
 
       // Update position
       let newY = dino.y + velocityY * deltaFactor
@@ -48,19 +51,19 @@ export function usePhysics(config: GameConfig) {
   )
 
   const checkCollision = useCallback((dino: DinosaurState, obstacle: Obstacle): boolean => {
-    // Use slightly smaller hitboxes than visuals to make the game feel fair.
+    // Hitboxes are smaller than the visuals so near misses feel fair: the player's box
+    // covers the body, not the empty space around arms and legs.
     const isDucking = Boolean(dino.isDucking)
-    const dinoInsetX = isDucking ? 8 : 6
-    const dinoInsetY = isDucking ? 8 : 4
-    const dinoLeft = dino.x + dinoInsetX
-    const dinoTop = dino.y + dinoInsetY
-    const dinoRight = dino.x + dino.width - dinoInsetX
-    const dinoBottom = dino.y + dino.height - dinoInsetY
+    const dinoInsetTop = isDucking ? 8 : 10
+    const dinoLeft = dino.x + PLAYER_HITBOX_INSET_X
+    const dinoTop = dino.y + dinoInsetTop
+    const dinoRight = dino.x + dino.width - PLAYER_HITBOX_INSET_X
+    const dinoBottom = dino.y + dino.height - PLAYER_HITBOX_INSET_BOTTOM
 
     const obstacleInsetX = obstacle.type === 'bird'
       ? 8
       : obstacle.type === 'spray'
-      ? 12
+      ? 14
       : obstacle.type === 'skate'
       ? 10
       : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'
@@ -77,7 +80,7 @@ export function usePhysics(config: GameConfig) {
     const obstacleInsetY = obstacle.type === 'bird'
       ? 6
       : obstacle.type === 'spray'
-      ? 12
+      ? 14
       : obstacle.type === 'skate'
       ? 8
       : obstacle.type === 'power-lightning' || obstacle.type === 'power-jump'
