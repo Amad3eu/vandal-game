@@ -52,6 +52,13 @@ export type GameMode = 'runner' | 'free'
  */
 export type GameAction = 'left' | 'right' | 'down' | 'jump' | 'dash'
 
+/** Directions the game loop polls every frame while they are held. */
+export interface HeldInput {
+  left: boolean
+  right: boolean
+  down: boolean
+}
+
 export interface PhaseInfo {
   id: GamePhase
   name: string

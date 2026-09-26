@@ -1,0 +1,747 @@
+/**
+ * Vandal Game engine: all game rules, with no React and no DOM. A front end (the web
+ * Game component today, an Expo app later) creates a state, calls stepGame once per frame
+ * with the held input, forwards button presses to pressJump/releaseJump/pressDash, reacts to
+ * the returned events and draws getView(state).
+ */
+import type {
+  DinosaurState,
+  GameConfig,
+  GameMode,
+  GamePhase,
+  GraffitiArtist,
+  HeldInput,
+  Obstacle,
+} from '../types/game'
+import { FREE_TUNING, RUNNER_TUNING } from '../data/gameModes'
+import {
+  BASE_CONFIG,
+  BASE_X,
+  COIN_SCORE,
+  COYOTE_TIME_MS,
+  DASH_COOLDOWN_MS,
+  DASH_DURATION_MS,
+  DASH_LUNGE,
+  DASH_LUNGE_DECAY,
+  DUCK_HEIGHT,
+  FAST_FALL_GRAVITY,
+  FAST_FALL_MIN_VELOCITY,
+  FRAME_TIME,
+  GRAFFITI_SIGNATURE_SCORE,
+  GRIND_TICK_MS,
+  GRIND_TICK_SCORE,
+  GROUND_RATIO,
+  JUMP_BOOST_DURATION_MS,
+  JUMP_BOOST_MULTIPLIER,
+  JUMP_BUFFER_MS,
+  JUMP_CUT_MULTIPLIER,
+  LIGHTNING_DURATION_MS,
+  MIN_JUMP_HEIGHT,
+  MIN_WORLD_HEIGHT,
+  MIN_WORLD_WIDTH,
+  OBSTACLE_PASSED_SCORE,
+  PHASE_2_SCORE,
+  PHASE_3_SCORE,
+  SKATE_DURATION_MS,
+  SKATE_FLICKER_MS,
+  SKATE_SPEED_MULTIPLIER,
+  TRAMPOLINE_BOOST,
+  WALL_CLING_MAX_MS,
+  WALL_CLING_SLIDE,
+  WALL_JUMP_HOP,
+  WALL_JUMP_POWER_MULT,
+} from './config'
+import { approach, checkCollision, moveAgainstBuildings, updatePlayerPosition } from './physics'
+import { createFloatingPath, createObstacle, getSpawnGap } from './spawn'
+
+export interface GameState {
+  mode: GameMode
+  config: GameConfig
+  /** Width of the visible world in game pixels (obstacles spawn just past it). */
+  worldWidth: number
+  random: () => number
+
+  player: DinosaurState
+  obstacles: Obstacle[]
+  nextObstacleId: number
+  // Spawning is distance-based, so it works both with auto-scroll and with the free camera.
+  spawnDistance: number
+  nextSpawnGap: number
+
+  score: number
+  coins: number
+  totalCoins: number
+  /** Artists signed in this run. */
+  signatures: GraffitiArtist[]
+  phase: GamePhase
+  speed: number
+  /** Scroll speed including power-up boosts (px per 60fps frame). */
+  effectiveSpeed: number
+
+  jumpBufferMs: number
+  coyoteMs: number
+  skateMs: number
+  skateFlickerMs: number
+  lightningMs: number
+  jumpBoostMs: number
+  dashMs: number
+  dashCooldownMs: number
+  dashLunge: number
+  grindTimerMs: number
+  grindCombo: number
+  wallCling: boolean
+  wallClingMs: number
+  wallSide: 1 | -1 // side of the wall being gripped
+  grounded: boolean // on the ground or on a platform, as of the last step
+  jumpHeld: boolean
+  jumpCutArmed: boolean
+  jumpTakeoffY: number
+  jumpsUsed: number
+
+  /** Paused by a graffiti encounter until resumeGame. */
+  paused: boolean
+  gameOver: boolean
+  artistEncounterId: number | null
+}
+
+export type GameEvent =
+  | { type: 'coin' }
+  | { type: 'artist'; artist: GraffitiArtist }
+  | { type: 'gameOver'; score: number }
+
+/** What a front end needs to draw a frame. */
+export interface GameView {
+  player: DinosaurState
+  obstacles: Obstacle[]
+  score: number
+  coins: number
+  totalCoins: number
+  signatures: GraffitiArtist[]
+  phase: GamePhase
+  speed: number
+  skateMs: number
+  skateFlickering: boolean
+  lightningMs: number
+  jumpBoostMs: number
+  dashing: boolean
+  dashCooldownMs: number
+  grindCombo: number
+  /** 0 = not gripping a wall, otherwise the side of the wall. */
+  wallClingSide: -1 | 0 | 1
+}
+
+interface CreateGameOptions {
+  mode: GameMode
+  /** World size in game pixels (see fitWorld). */
+  width: number
+  height: number
+  totalCoins?: number
+  random?: () => number
+}
+
+/** How much to scale the world down so a small viewport still shows enough of it. */
+export function fitWorld(viewportWidth: number, viewportHeight: number) {
+  const scale = Math.min(1, viewportWidth / MIN_WORLD_WIDTH, viewportHeight / MIN_WORLD_HEIGHT)
+  return { scale, width: viewportWidth / scale, height: viewportHeight / scale }
+}
+
+export function createGameState({
+  mode,
+  width,
+  height,
+  totalCoins = 0,
+  random = Math.random,
+}: CreateGameOptions): GameState {
+  const config: GameConfig = { ...BASE_CONFIG, groundLevel: Math.round(height * GROUND_RATIO) }
+  const state: GameState = {
+    mode,
+    config,
+    worldWidth: width,
+    random,
+    player: {
+      x: BASE_X,
+      y: config.groundLevel - config.playerSize,
+      velocityY: 0,
+      velocityX: 0,
+      facing: 1,
+      isJumping: false,
+      isDucking: false,
+      width: config.playerSize,
+      height: config.playerSize,
+    },
+    obstacles: [],
+    nextObstacleId: 0,
+    spawnDistance: 0,
+    nextSpawnGap: 0,
+    score: 0,
+    coins: 0,
+    totalCoins,
+    signatures: [],
+    phase: 1,
+    speed: config.initialSpeed,
+    effectiveSpeed: config.initialSpeed,
+    jumpBufferMs: 0,
+    coyoteMs: 0,
+    skateMs: 0,
+    skateFlickerMs: 0,
+    lightningMs: 0,
+    jumpBoostMs: 0,
+    dashMs: 0,
+    dashCooldownMs: 0,
+    dashLunge: 0,
+    grindTimerMs: 0,
+    grindCombo: 0,
+    wallCling: false,
+    wallClingMs: 0,
+    wallSide: 1,
+    grounded: true,
+    jumpHeld: false,
+    jumpCutArmed: false,
+    jumpTakeoffY: 0,
+    jumpsUsed: 0,
+    paused: false,
+    gameOver: false,
+    artistEncounterId: null,
+  }
+  state.nextSpawnGap = getSpawnGap(state, state.speed) * 0.5
+  return state
+}
+
+/** Window resize or phone rotation: move the floor, keeping obstacles and the player on it. */
+export function resizeWorld(state: GameState, width: number, height: number) {
+  state.worldWidth = width
+  const groundLevel = Math.round(height * GROUND_RATIO)
+  const groundShift = groundLevel - state.config.groundLevel
+  if (groundShift === 0) return
+
+  state.config = { ...state.config, groundLevel }
+  state.obstacles = state.obstacles.map((obs) => ({ ...obs, y: obs.y + groundShift }))
+  const size = state.config.playerSize
+  state.player = {
+    ...state.player,
+    y: groundLevel - size,
+    velocityY: 0,
+    isJumping: false,
+    isDucking: false,
+    width: size,
+    height: size,
+  }
+}
+
+function getPhase(score: number): GamePhase {
+  if (score >= PHASE_3_SCORE) return 3
+  if (score >= PHASE_2_SCORE) return 2
+  return 1
+}
+
+// Starts a jump from where the player stands, standing up first if ducked (feet stay put,
+// so jumping from a train roof or while ducked doesn't sink into the floor).
+function launchJump(state: GameState, dino: DinosaurState, power: number): DinosaurState {
+  const size = state.config.playerSize
+  const y = dino.y + dino.height - size
+  state.jumpTakeoffY = y
+  state.jumpCutArmed = true
+  state.jumpBufferMs = 0
+  state.coyoteMs = 0
+  state.grounded = false
+  return {
+    ...dino,
+    y,
+    isDucking: false,
+    height: size,
+    velocityY: -power,
+    isJumping: true,
+  }
+}
+
+export function pressJump(state: GameState) {
+  state.jumpHeld = true
+  if (state.paused || state.gameOver) return
+  state.jumpBufferMs = JUMP_BUFFER_MS
+
+  const { jumpPower } = state.config
+  const jumpPowerMultiplier = state.jumpBoostMs > 0 ? JUMP_BOOST_MULTIPLIER : 1
+
+  // Wall-jump: launch off a wall we're currently gripping (Hollow Knight).
+  if (state.wallCling) {
+    const wallJumped: DinosaurState = {
+      ...launchJump(state, state.player, jumpPower * WALL_JUMP_POWER_MULT * jumpPowerMultiplier),
+      isWallClinging: false,
+    }
+    if (state.mode === 'free') {
+      wallJumped.velocityX = -state.wallSide * FREE_TUNING.wallKick
+    } else {
+      state.dashLunge = Math.max(state.dashLunge, WALL_JUMP_HOP) // hop forward, over the ledge
+    }
+    state.player = wallJumped
+    state.wallCling = false
+    state.wallClingMs = 0
+    state.jumpsUsed = 1
+    return
+  }
+
+  // Ground jump, or the extra mid-air jump from the Super Pulo power-up. Only the ground
+  // jump gets the power-up boost, so a boosted double jump can't fly off the screen.
+  const grounded = state.grounded
+  const maxJumps = state.jumpBoostMs > 0 ? 2 : 1
+  if (grounded || state.jumpsUsed < maxJumps) {
+    const power = grounded ? jumpPower * jumpPowerMultiplier : jumpPower
+    state.player = launchJump(state, state.player, power)
+    state.jumpsUsed = grounded ? 1 : state.jumpsUsed + 1
+  }
+}
+
+/** Variable jump height (Mario): stepGame clips the rise once the button is released. */
+export function releaseJump(state: GameState) {
+  state.jumpHeld = false
+}
+
+/** Dash / esquiva: brief lunge with i-frames and a cooldown (Hollow Knight / Subway roll). */
+export function pressDash(state: GameState) {
+  if (state.paused || state.gameOver) return
+  if (state.dashCooldownMs > 0 || state.dashMs > 0) return
+  state.dashMs = DASH_DURATION_MS
+  state.dashCooldownMs = DASH_COOLDOWN_MS
+  // The free mode dashes through velocityX instead of the runner's lunge.
+  state.dashLunge = state.mode === 'runner' ? DASH_LUNGE : 0
+  state.player = {
+    ...state.player,
+    isDashing: true,
+    velocityY: 0, // brief air-hover, both on ground and mid-air
+  }
+}
+
+/** Ends the graffiti encounter pause. */
+export function resumeGame(state: GameState) {
+  state.paused = false
+  state.artistEncounterId = null
+}
+
+/** Signing an artist's blackbook scores once per artist per run; returns whether it counted. */
+export function awardSignature(state: GameState, artist: GraffitiArtist) {
+  if (state.signatures.includes(artist)) return false
+  state.score += GRAFFITI_SIGNATURE_SCORE
+  state.signatures = [...state.signatures, artist]
+  return true
+}
+
+// Things you can touch without dying (pickups, platforms, buildings are handled separately).
+function isHazard(obs: Obstacle) {
+  return (
+    obs.type !== 'skate' &&
+    obs.type !== 'coin' &&
+    obs.type !== 'power-lightning' &&
+    obs.type !== 'power-jump' &&
+    obs.type !== 'floating-platform' &&
+    obs.type !== 'train' &&
+    obs.type !== 'building' &&
+    obs.type !== 'trampoline'
+  )
+}
+
+/** Advances the game by one frame. deltaMs is the real frame time (clamp it before calling). */
+export function stepGame(state: GameState, input: HeldInput, deltaMs: number): GameEvent[] {
+  const events: GameEvent[] = []
+  if (state.paused || state.gameOver) return events
+
+  const { mode } = state
+  const config = state.config
+  const deltaFactor = deltaMs / FRAME_TIME
+
+  state.jumpBufferMs = Math.max(0, state.jumpBufferMs - deltaMs)
+  state.coyoteMs = Math.max(0, state.coyoteMs - deltaMs)
+  state.skateMs = Math.max(0, state.skateMs - deltaMs)
+  state.skateFlickerMs = Math.max(0, state.skateFlickerMs - deltaMs)
+  state.lightningMs = Math.max(0, state.lightningMs - deltaMs)
+  state.jumpBoostMs = Math.max(0, state.jumpBoostMs - deltaMs)
+  state.dashMs = Math.max(0, state.dashMs - deltaMs)
+  state.dashCooldownMs = Math.max(0, state.dashCooldownMs - deltaMs)
+
+  // Phase progression (score-driven) lifts the speed ceiling each phase.
+  state.phase = getPhase(state.score)
+  const phaseMaxSpeed = config.maxSpeed + RUNNER_TUNING.phaseSpeedBonus[state.phase - 1]
+
+  state.speed = Math.min(phaseMaxSpeed, state.speed + deltaMs * RUNNER_TUNING.accelerationPerMs)
+  const dashing = state.dashMs > 0
+  const invincible = state.lightningMs > 0 || dashing
+  const speedBoost = state.skateMs > 0 || state.lightningMs > 0 ? SKATE_SPEED_MULTIPLIER : 1
+  const effectiveSpeed = state.speed * speedBoost
+  state.effectiveSpeed = effectiveSpeed
+  const moveAxis = mode === 'free' ? Number(input.right) - Number(input.left) : 0
+
+  const previous = state.player
+  let player = previous
+  let wallContact: -1 | 0 | 1 = 0
+
+  if (mode === 'free') {
+    // Walk with a little acceleration, keep momentum in the air, and stop at buildings.
+    let velocityX = previous.velocityX ?? 0
+    const facing = moveAxis !== 0 ? (moveAxis as 1 | -1) : previous.facing ?? 1
+    if (dashing) {
+      velocityX = facing * FREE_TUNING.dashSpeed
+    } else {
+      const crouchFactor = previous.isDucking ? FREE_TUNING.crouchSpeedFactor : 1
+      const topSpeed = FREE_TUNING.walkSpeed * speedBoost * crouchFactor
+      const rate =
+        moveAxis !== 0
+          ? state.grounded ? FREE_TUNING.groundAcceleration : FREE_TUNING.airAcceleration
+          : state.grounded ? FREE_TUNING.groundDeceleration : FREE_TUNING.airDeceleration
+      velocityX = approach(velocityX, moveAxis * topSpeed, rate * deltaFactor)
+    }
+
+    const moved = moveAgainstBuildings(previous, velocityX * deltaFactor, state.obstacles)
+    wallContact = moved.wallContact
+    if (wallContact !== 0) velocityX = 0
+    let x = previous.x + moved.dx
+    if (x < FREE_TUNING.leftLimit) {
+      x = FREE_TUNING.leftLimit
+      velocityX = Math.max(0, velocityX)
+    }
+    player = { ...previous, x, velocityX, facing }
+  }
+
+  if (dashing) {
+    // Air-hover during the dash: freeze vertical velocity and glide.
+    player = { ...player, velocityY: 0, isDashing: true }
+  } else {
+    // Holding down mid-air cancels the rise and drops faster (Chrome dino).
+    const fastFalling = input.down && !state.grounded && !state.wallCling
+    if (fastFalling) player = { ...player, velocityY: Math.max(player.velocityY, FAST_FALL_MIN_VELOCITY) }
+    player = updatePlayerPosition(player, config, deltaFactor, fastFalling ? FAST_FALL_GRAVITY : 1)
+    if (player.isDashing) player = { ...player, isDashing: false }
+  }
+
+  // Variable jump height: once the button is released the rise is clipped, but never
+  // below MIN_JUMP_HEIGHT, so a quick tap still clears a spray.
+  if (state.jumpCutArmed) {
+    if (player.velocityY >= 0) {
+      state.jumpCutArmed = false
+    } else if (!state.jumpHeld && state.jumpTakeoffY - player.y >= MIN_JUMP_HEIGHT) {
+      player = { ...player, velocityY: player.velocityY * JUMP_CUT_MULTIPLIER }
+      state.jumpCutArmed = false
+    }
+  }
+
+  if (mode === 'runner') {
+    // Horizontal lunge (dash / wall-jump hop) eases back to the base lane.
+    state.dashLunge *= DASH_LUNGE_DECAY
+    if (state.dashLunge < 0.6) state.dashLunge = 0
+    player = { ...player, x: BASE_X + state.dashLunge }
+  }
+
+  let onPlatform = false
+  for (const platform of state.obstacles) {
+    if (platform.type !== 'floating-platform' && platform.type !== 'train' && platform.type !== 'building') {
+      continue
+    }
+
+    const dinoLeft = player.x + 6
+    const dinoRight = player.x + player.width - 6
+    const prevBottom = previous.y + previous.height
+    const nextBottom = player.y + player.height
+    const platformTop = platform.y
+    const overlapsX = dinoRight > platform.x + 6 && dinoLeft < platform.x + platform.width - 6
+    const fallingIntoTop = previous.velocityY >= 0 && prevBottom <= platformTop + 8 && nextBottom >= platformTop
+
+    if (overlapsX && fallingIntoTop) {
+      player = { ...player, y: platformTop - player.height, velocityY: 0, isJumping: false }
+      onPlatform = true
+      state.jumpsUsed = 0
+      break
+    }
+  }
+
+  // Wall-cling on building faces (phase 3 verticality). The runner grips the left face it
+  // runs into; the free mode grips whichever face the player is pushing against.
+  state.wallCling = false
+  let touchingWall = false
+  const airborne = player.y + player.height < config.groundLevel - 1
+  if (!onPlatform && !dashing && mode === 'free') {
+    if (airborne && wallContact !== 0 && moveAxis === wallContact) {
+      touchingWall = true
+      if (state.wallClingMs < WALL_CLING_MAX_MS) {
+        state.wallCling = true
+        state.wallSide = wallContact
+        player = {
+          ...player,
+          velocityY: Math.min(player.velocityY, WALL_CLING_SLIDE),
+          isJumping: true,
+          isWallClinging: true,
+        }
+        state.jumpsUsed = 0
+      }
+    }
+  } else if (!onPlatform && !dashing) {
+    for (const wall of state.obstacles) {
+      if (wall.type !== 'building') continue
+      const dinoRight = player.x + player.width
+      const dinoBottom = player.y + player.height
+      const dinoTop = player.y
+      const nearLeftFace = dinoRight >= wall.x - 4 && dinoRight <= wall.x + 24
+      const withinWallBand = dinoBottom > wall.y + 12 && dinoTop < wall.y + wall.height - 4
+      if (airborne && nearLeftFace && withinWallBand) {
+        touchingWall = true
+        if (state.wallClingMs < WALL_CLING_MAX_MS) {
+          state.wallCling = true
+          state.wallSide = 1
+          player = {
+            ...player,
+            x: wall.x - player.width + 2,
+            velocityY: Math.min(player.velocityY, WALL_CLING_SLIDE),
+            isJumping: true,
+            isWallClinging: true,
+          }
+          state.jumpsUsed = 0
+        }
+        break
+      }
+    }
+  }
+  if (state.wallCling) {
+    state.wallClingMs += deltaMs
+  } else {
+    if (!touchingWall) state.wallClingMs = 0
+    if (player.isWallClinging) player = { ...player, isWallClinging: false }
+  }
+
+  const onGround = onPlatform || player.y + player.height >= config.groundLevel - 1
+  state.grounded = onGround
+  if (!onGround && !player.isJumping) {
+    // Walked off a roof or train: show the airborne pose instead of running in mid-air.
+    player = { ...player, isJumping: true }
+  }
+
+  if (onGround) {
+    state.coyoteMs = COYOTE_TIME_MS
+    state.jumpsUsed = 0
+    state.wallClingMs = 0
+  }
+
+  // Duck while the down key is held on solid ground (train roofs included), stand up
+  // otherwise. The feet stay put, so ducking on a roof doesn't drop through it.
+  const wantsDuck = input.down && onGround
+  if (wantsDuck !== Boolean(player.isDucking)) {
+    const height = wantsDuck ? DUCK_HEIGHT : config.playerSize
+    const bottom = player.y + player.height
+    player = { ...player, isDucking: wantsDuck, height, y: bottom - height }
+  }
+
+  if (state.jumpBufferMs > 0 && state.coyoteMs > 0) {
+    const jumpPowerMultiplier = state.jumpBoostMs > 0 ? JUMP_BOOST_MULTIPLIER : 1
+    player = launchJump(state, player, config.jumpPower * jumpPowerMultiplier)
+    state.jumpsUsed = 1
+  }
+
+  // How far the world moves this frame: constant in the runner; in the free mode the
+  // camera only follows once the player walks past the camera line.
+  let scroll = effectiveSpeed * deltaFactor
+  if (mode === 'free') {
+    const cameraX = state.worldWidth * FREE_TUNING.cameraLine
+    scroll = Math.max(0, player.x - cameraX)
+    if (scroll > 0) player = { ...player, x: cameraX }
+  }
+
+  // Grind combo while riding a train/building roof (Jet Set Radio). It only counts while
+  // the world moves, so the free mode can't farm it by standing or pacing on a roof.
+  if (onPlatform && scroll > 0) {
+    state.grindTimerMs += deltaMs
+    while (state.grindTimerMs >= GRIND_TICK_MS) {
+      state.grindTimerMs -= GRIND_TICK_MS
+      state.grindCombo += 1
+      state.score += GRIND_TICK_SCORE * state.grindCombo
+    }
+  } else {
+    state.grindTimerMs = 0
+    if (onGround) state.grindCombo = 0
+  }
+
+  state.spawnDistance += scroll
+  if (state.spawnDistance >= state.nextSpawnGap) {
+    const shouldSpawnPath =
+      state.score >= 500 &&
+      state.random() < 0.18 &&
+      !state.obstacles.some((obs) => obs.type === 'floating-platform' || obs.type === 'train')
+
+    const gap = getSpawnGap(state, effectiveSpeed)
+    if (shouldSpawnPath) {
+      // Nothing else spawns until the whole train line has scrolled in.
+      const path = createFloatingPath(state)
+      const pathLength = path
+        .filter((obs) => obs.type === 'train')
+        .reduce((length, train) => length + train.width, 0)
+      state.obstacles = [...state.obstacles, ...path]
+      state.nextSpawnGap = pathLength + gap
+    } else {
+      const obstacle = createObstacle(state)
+      if (mode === 'free' && obstacle.type === 'bird') {
+        // Birds fly toward the player: spawn them further out so that, for someone walking
+        // at full speed, they arrive spaced like any other obstacle.
+        const cameraX = state.worldWidth * FREE_TUNING.cameraLine
+        obstacle.x += ((obstacle.x - cameraX) * FREE_TUNING.birdDrift) / FREE_TUNING.walkSpeed
+      }
+      state.obstacles = [...state.obstacles, obstacle]
+      state.nextSpawnGap = gap
+    }
+    state.spawnDistance = 0
+  }
+
+  const birdDrift = mode === 'free' ? FREE_TUNING.birdDrift * deltaFactor : 0
+  const beforeScroll = state.obstacles
+  // (typed with `as` so TS doesn't narrow it to null: it's assigned inside the callback)
+  let encounteredArtist = null as GraffitiArtist | null
+  state.obstacles = beforeScroll
+    .map((obs) => ({
+      ...obs,
+      x: obs.x - scroll - (obs.type === 'bird' ? birdDrift : 0),
+    }))
+    .filter((obs) => obs.x + obs.width > -10)
+    .flatMap((obs) => {
+      if (obs.type === 'coin' && checkCollision(player, obs)) {
+        state.score += COIN_SCORE
+        state.coins += 1
+        state.totalCoins += 1
+        events.push({ type: 'coin' })
+        return []
+      }
+
+      if (obs.type === 'graffiti-artist' && checkCollision(player, obs)) {
+        if (obs.graffitiArtist && state.artistEncounterId === null) {
+          state.artistEncounterId = obs.id
+          encounteredArtist = obs.graffitiArtist
+        }
+        return []
+      }
+
+      if (obs.type === 'power-lightning' && checkCollision(player, obs)) {
+        state.lightningMs = LIGHTNING_DURATION_MS
+        return []
+      }
+
+      if (obs.type === 'power-jump' && checkCollision(player, obs)) {
+        state.jumpBoostMs = JUMP_BOOST_DURATION_MS
+        return []
+      }
+
+      if (obs.type === 'skate' && checkCollision(player, obs)) {
+        state.skateMs = SKATE_DURATION_MS
+        return []
+      }
+
+      if (obs.type === 'trampoline' && checkCollision(player, obs)) {
+        const nextPlatform = beforeScroll
+          .filter(
+            (candidate) =>
+              (candidate.type === 'floating-platform' || candidate.type === 'train') &&
+              candidate.x + candidate.width > player.x
+          )
+          .sort((a, b) => a.x - b.x)[0]
+        const jumpBoostMultiplier = state.jumpBoostMs > 0 ? JUMP_BOOST_MULTIPLIER : 1
+        const travelDistance = nextPlatform ? Math.max(0, nextPlatform.x - player.x) : 0
+        const travelFrames = travelDistance > 0 ? travelDistance / Math.max(1, effectiveSpeed) : 0
+        // The free mode has no scroll speed to aim with, so it always gets the full bounce.
+        const trampolineMultiplier =
+          mode === 'free'
+            ? TRAMPOLINE_BOOST
+            : nextPlatform
+            ? Math.min(TRAMPOLINE_BOOST, Math.max(1, 1 + travelFrames / 220))
+            : 1.04
+        player = launchJump(state, player, config.jumpPower * trampolineMultiplier * jumpBoostMultiplier)
+        state.jumpCutArmed = false // a bounce is not a button jump: releasing can't clip it
+        state.jumpsUsed = 1
+        return []
+      }
+
+      if (!obs.passed && obs.x + obs.width < player.x) {
+        if (
+          obs.type !== 'skate' &&
+          obs.type !== 'trampoline' &&
+          obs.type !== 'floating-platform' &&
+          obs.type !== 'train' &&
+          obs.type !== 'coin' &&
+          obs.type !== 'power-lightning' &&
+          obs.type !== 'power-jump'
+        ) {
+          state.score += OBSTACLE_PASSED_SCORE
+        }
+        return { ...obs, passed: true }
+      }
+      return obs
+    })
+
+  if (encounteredArtist) {
+    // Pause right here; the front end shows the dialog and calls resumeGame afterwards.
+    state.player = player
+    state.paused = true
+    events.push({ type: 'artist', artist: encounteredArtist })
+    return events
+  }
+
+  // A building only kills when the player is embedded in its wall (rammed at
+  // ground level), never when landing on the roof or gripping the face. In the free
+  // mode buildings are solid walls instead, so they never kill.
+  const buildingEmbedded =
+    mode === 'runner' &&
+    state.obstacles.some((obs) => {
+      if (obs.type !== 'building') return false
+      const dLeft = player.x + 6
+      const dRight = player.x + player.width - 6
+      const dBottom = player.y + player.height
+      const coreLeft = obs.x + 10
+      const coreRight = obs.x + obs.width - 6
+      return dRight > coreLeft && dLeft < coreRight && dBottom > obs.y + 44
+    })
+
+  let skateShieldHit = false
+  if (state.skateMs > 0 && !dashing) {
+    skateShieldHit =
+      buildingEmbedded || state.obstacles.some((obs) => isHazard(obs) && checkCollision(player, obs))
+
+    if (skateShieldHit) {
+      state.skateMs = 0
+      state.skateFlickerMs = SKATE_FLICKER_MS
+      player = {
+        ...player,
+        y: config.groundLevel - config.playerSize,
+        velocityY: 0,
+        isJumping: false,
+        isDucking: false,
+        height: config.playerSize,
+      }
+    }
+  }
+
+  state.player = player
+
+  const hasCollision =
+    !skateShieldHit &&
+    !invincible &&
+    (buildingEmbedded || state.obstacles.some((obs) => isHazard(obs) && checkCollision(player, obs)))
+
+  if (hasCollision) {
+    state.gameOver = true
+    events.push({ type: 'gameOver', score: state.score })
+  }
+
+  return events
+}
+
+export function getView(state: GameState): GameView {
+  return {
+    player: state.player,
+    obstacles: state.obstacles,
+    score: state.score,
+    coins: state.coins,
+    totalCoins: state.totalCoins,
+    signatures: state.signatures,
+    phase: state.phase,
+    speed: state.effectiveSpeed,
+    skateMs: state.skateMs,
+    skateFlickering: state.skateFlickerMs > 0,
+    lightningMs: state.lightningMs,
+    jumpBoostMs: state.jumpBoostMs,
+    dashing: state.dashMs > 0,
+    dashCooldownMs: state.dashCooldownMs,
+    grindCombo: state.grindCombo,
+    wallClingSide: state.wallCling ? state.wallSide : 0,
+  }
+}

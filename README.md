@@ -161,8 +161,12 @@ src/
 │   └── HUD.css
 ├── data/
 │   └── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
+├── game/                  # Regras do jogo, sem React nem DOM (reaproveitável no app Expo)
+│   ├── engine.ts          # Estado da partida, passo por frame, ações e eventos
+│   ├── physics.ts         # Gravidade, colisões e paredes
+│   ├── spawn.ts           # Geração de obstáculos
+│   └── config.ts          # Constantes do jogo (pulo, power-ups, fases...)
 ├── hooks/
-│   ├── usePhysics.ts      # Lógica de física do jogo
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
 ├── types/
 │   └── game.ts            # Tipos TypeScript do jogo
@@ -196,7 +200,20 @@ Os números de cada modo ficam em `src/data/gameModes.ts`:
 - `RUNNER_TUNING` (Corrida): velocidade inicial e máxima, aceleração e o tempo mínimo entre obstáculos
 - `FREE_TUNING` (Livre): velocidade de caminhada, aceleração, controle no ar e distância entre obstáculos
 
-O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/components/Game.tsx`, e as hitboxes em `src/hooks/usePhysics.ts`.
+O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/game/config.ts`, e as hitboxes em `src/game/physics.ts`.
+
+### Usando a engine em outro front end (ex.: Expo)
+
+`src/game/engine.ts` não depende de React nem do navegador. O fluxo é:
+
+```typescript
+const state = createGameState({ mode: 'runner', width, height })  // tamanho do mundo: fitWorld()
+// a cada frame:
+const events = stepGame(state, { left, right, down }, deltaMs)     // 'coin' | 'artist' | 'gameOver'
+desenhar(getView(state))
+// botões:
+pressJump(state) / releaseJump(state) / pressDash(state)
+```
 
 ### Cores e Temas
 

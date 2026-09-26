@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { GameAction } from '../types/game'
-
-/** Directions the game loop polls every frame while they are held. */
-export interface HeldInput {
-  left: boolean
-  right: boolean
-  down: boolean
-}
+import type { GameAction, HeldInput } from '../types/game'
 
 interface GameInputHandlers {
   onJump: () => void
