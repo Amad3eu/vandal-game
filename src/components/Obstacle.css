@@ -161,11 +161,115 @@
   right: 8%;
 }
 
-.obstacle-floating-platform,
 .obstacle-train {
   background: transparent;
   animation: platformFloat 1.2s ease-in-out infinite;
   overflow: visible;
+}
+
+/* Checkpoint climb step: a scaffold beam with hazard stripes. It doesn't bob like the
+   trains, so where it's drawn is exactly where the player lands. */
+.obstacle-floating-platform {
+  background: transparent;
+  overflow: visible;
+  border-radius: 0;
+}
+
+.ledge-beam {
+  position: absolute;
+  inset: 0;
+  border: 3px solid #1f2430;
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0 3px, transparent 3px),
+    repeating-linear-gradient(-45deg, #ffd23f 0 14px, #2b2f3a 14px 28px);
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.28);
+}
+
+.ledge-bracket {
+  position: absolute;
+  top: 100%;
+  width: 10px;
+  height: 26px;
+  background: #3a4050;
+  border: 2px solid #1f2430;
+  border-top: none;
+}
+
+.ledge-bracket-left {
+  left: 12%;
+}
+
+.ledge-bracket-right {
+  right: 12%;
+}
+
+/* Checkpoint flag: grey and hanging low until grabbed, then raised and green. */
+.obstacle-checkpoint {
+  background: transparent;
+  overflow: visible;
+}
+
+.flag-pole {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e5e7eb, #9ca3af);
+  border: 2px solid #1f2430;
+}
+
+.flag-cloth {
+  position: absolute;
+  left: 15px;
+  top: 38%;
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #1f2430;
+  border-radius: 0 6px 6px 0;
+  background: #ff4d9d;
+  transform-origin: left center;
+  animation: flagWave 0.9s ease-in-out infinite;
+  transition: top 0.5s ease-out, background-color 0.3s;
+}
+
+.flag-cloth::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.obstacle-checkpoint.reached .flag-cloth {
+  top: 4px;
+  background: #34d399;
+}
+
+.flag-base {
+  position: absolute;
+  left: -2px;
+  bottom: 0;
+  width: 28px;
+  height: 8px;
+  border-radius: 3px;
+  background: #3a4050;
+  border: 2px solid #1f2430;
+}
+
+@keyframes flagWave {
+  0%,
+  100% {
+    transform: skewY(0deg) scaleX(1);
+  }
+  50% {
+    transform: skewY(-6deg) scaleX(0.92);
+  }
 }
 
 /* The roof drawn in the sprite (10% down the image) sits where the player's feet are drawn
@@ -184,7 +288,6 @@
   pointer-events: none;
 }
 
-.obstacle-floating-platform .train-sprite,
 .obstacle-train .train-sprite {
   filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.24));
 }

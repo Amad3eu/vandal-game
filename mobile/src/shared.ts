@@ -3,8 +3,11 @@
 export * from '../../src/game/engine'
 export { GAME_MODES, GAME_MODE_ORDER, RUNNER_TUNING, TOUCH_BUTTON_LABELS } from '../../src/data/gameModes'
 export { ARTIST_INFO } from '../../src/data/graffitiArtists'
+export { CHECKPOINT_TIP, PHASES } from '../../src/data/phases'
 export { ARTIST_SIGNATURES } from '../../src/data/artistSignatures'
+export type { Chaser } from '../../src/game/engine'
 export type {
+  Checkpoint,
   DinosaurState,
   GameAction,
   GameMode,

@@ -52,6 +52,18 @@ export const TRAIN_FRAMES: ImageSourcePropType[] = [
   require('../assets/sprites/train/6.png'),
 ]
 
+// The intro's cop and the wall being tagged.
+export const COP_RUN_FRAMES: ImageSourcePropType[] = [
+  require('../assets/sprites/cop/cop-run-1.png'),
+  require('../assets/sprites/cop/cop-run-2.png'),
+  require('../assets/sprites/cop/cop-run-3.png'),
+  require('../assets/sprites/cop/cop-run-4.png'),
+]
+export const COP_SHOUT: ImageSourcePropType = require('../assets/sprites/cop/cop-shout.png')
+export const COP_CATCH: ImageSourcePropType = require('../assets/sprites/cop/cop-catch.png')
+export const INTRO_WALL: ImageSourcePropType = require('../assets/sprites/intro/wall.png')
+export const INTRO_TAG: ImageSourcePropType = require('../assets/sprites/intro/tag.png')
+
 export const POWER_JUMP: ImageSourcePropType = require('../assets/sprites/powerups/jump.png')
 export const POWER_LIGHTNING: ImageSourcePropType = require('../assets/sprites/powerups/lightning.png')
 

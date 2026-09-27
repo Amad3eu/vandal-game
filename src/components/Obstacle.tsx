@@ -15,10 +15,14 @@ import trainFrame3 from "../assets/sprites/Train/Sprite-0004.png";
 import trainFrame4 from "../assets/sprites/Train/Sprite-0005.png";
 import trainFrame5 from "../assets/sprites/Train/Sprite-0006.png";
 import trainFrame6 from "../assets/sprites/Train/Sprite-0007.png";
+import wallBricks from "../assets/sprites/intro/wall.png";
+import wallTag from "../assets/sprites/intro/tag.png";
 import "./Obstacle.css";
 
 interface ObstaclesProps {
   obstacles: Obstacle[];
+  /** How much of the intro wall's tag is painted (0..1). */
+  tagProgress?: number;
 }
 
 function SpraySprite() {
@@ -107,13 +111,13 @@ function GraffitiArtistSprite({ artist }: { artist?: GraffitiArtist }) {
   );
 }
 
-export default function Obstacles({ obstacles }: ObstaclesProps) {
+export default function Obstacles({ obstacles, tagProgress = 1 }: ObstaclesProps) {
   return (
     <div className="obstacles">
       {obstacles.map((obstacle) => (
         <div
           key={obstacle.id}
-          className={`obstacle obstacle-${obstacle.type}`}
+          className={`obstacle obstacle-${obstacle.type} ${obstacle.reached ? "reached" : ""}`}
           style={{
             left: `${obstacle.x}px`,
             top: `${obstacle.type === "spray" ? obstacle.y - 18 : obstacle.y}px`,
@@ -136,9 +140,28 @@ export default function Obstacles({ obstacles }: ObstaclesProps) {
             <>
               <SpraySprite />
             </>
-          ) : obstacle.type === "floating-platform" || obstacle.type === "train" ? (
+          ) : obstacle.type === "train" ? (
             <>
               <TrainSprite />
+            </>
+          ) : obstacle.type === "floating-platform" ? (
+            <>
+              <div className="ledge-beam" />
+              <div className="ledge-bracket ledge-bracket-left" />
+              <div className="ledge-bracket ledge-bracket-right" />
+            </>
+          ) : obstacle.type === "wall" ? (
+            <>
+              <img src={wallBricks} alt="" className="wall-bricks" draggable={false} />
+              <div className="wall-tag" style={{ clipPath: `inset(0 ${(1 - tagProgress) * 100}% 0 0)` }}>
+                <img src={wallTag} alt="" draggable={false} />
+              </div>
+            </>
+          ) : obstacle.type === "checkpoint" ? (
+            <>
+              <div className="flag-pole" />
+              <div className="flag-cloth" />
+              <div className="flag-base" />
             </>
           ) : obstacle.type === "trampoline" ? (
             <>

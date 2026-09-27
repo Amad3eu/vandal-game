@@ -1,5 +1,6 @@
 import { GameMode, GraffitiArtist } from '../types/game'
 import { GAME_MODES } from '../data/gameModes'
+import { PHASES } from '../data/phases'
 import './HUD.css'
 
 interface HUDProps {
@@ -19,12 +20,6 @@ interface HUDProps {
   phase?: 1 | 2 | 3
   dashCooldownMs?: number
   grindCombo?: number
-}
-
-const PHASE_INFO: Record<1 | 2 | 3, { name: string; emoji: string }> = {
-  1: { name: 'Rua', emoji: '🌇' },
-  2: { name: 'Metrô', emoji: '🚇' },
-  3: { name: 'Telhados', emoji: '🌃' },
 }
 
 export default function HUD({
@@ -62,7 +57,7 @@ export default function HUD({
       <div className="hud-item">
         <span className="hud-label">Fase</span>
         <span className={`hud-tag phase-tag phase-tag-${phase}`}>
-          {PHASE_INFO[phase].emoji} {phase} · {PHASE_INFO[phase].name}
+          {PHASES[phase].emoji} {phase} · {PHASES[phase].name}
         </span>
       </div>
       <div className="hud-item">

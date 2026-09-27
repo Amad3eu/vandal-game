@@ -26,6 +26,12 @@ GROUPS = {
     "train": ("Train", "Sprite-*.png"),
 }
 
+# Single images kept by name: the intro's cop and the tagged wall (see ../scripts/make-intro-sprites.py).
+NAMED = {
+    "cop": ("cop", ["cop-run-1", "cop-run-2", "cop-run-3", "cop-run-4", "cop-shout", "cop-catch"]),
+    "intro": ("intro", ["wall", "tag"]),
+}
+
 
 def natural_key(path: Path):
     return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", path.name)]
@@ -53,9 +59,19 @@ def rasterise_svg(source: Path, target: Path):
     image.save(target)
 
 
+def upscale_named(name: str, folder: str, files):
+    target = OUT / name
+    target.mkdir(parents=True, exist_ok=True)
+    for file in files:
+        image = Image.open(SOURCE / folder / f"{file}.png").convert("RGBA")
+        image.resize((image.width * SCALE, image.height * SCALE), Image.NEAREST).save(target / f"{file}.png")
+
+
 def main():
     for name, (folder, pattern) in GROUPS.items():
         upscale_group(name, folder, pattern)
+    for name, (folder, files) in NAMED.items():
+        upscale_named(name, folder, files)
     (OUT / "powerups").mkdir(parents=True, exist_ok=True)
     for kind in ("jump", "lightning"):
         rasterise_svg(SOURCE / "powerups" / f"power-{kind}.svg", OUT / "powerups" / f"{kind}.png")

@@ -14,27 +14,24 @@ export default function DrawingConfirmation({
   onGoBack,
 }: DrawingConfirmationProps) {
   return (
-    <div className="drawing-confirmation-overlay">
-      <div className="drawing-confirmation-container">
-        <div className="confirmation-header">
-          <h2>Sua Arte</h2>
-          <p>Seu desenho para {artist}</p>
-        </div>
+    <div className="street-backdrop drawing-backdrop">
+      <div className="confirmation-panel paper-panel" role="dialog" aria-labelledby="confirmation-title">
+        <h2 id="confirmation-title" className="confirmation-title">Ficou brabo!</h2>
+        <p className="confirmation-subtitle">Seu desenho para {artist}</p>
 
-        <div className="drawing-preview">
-          <img src={imageData} alt="Your artwork" className="preview-image" />
-        </div>
+        <figure className="confirmation-sticker">
+          <span className="tape" />
+          <img src={imageData} alt="Seu desenho" />
+        </figure>
 
-        <div className="confirmation-text">
-          <p>Quer salvar esse desenho no seu blackbook?</p>
-        </div>
+        <p className="confirmation-ask">Salvar no seu blackbook?</p>
 
-        <div className="confirmation-buttons">
-          <button className="btn-back" onClick={onGoBack}>
-            VOLTAR
+        <div className="confirmation-actions">
+          <button className="sticker-btn is-ghost" onClick={onGoBack}>
+            ← Refazer
           </button>
-          <button className="btn-confirm" onClick={onConfirm}>
-            OK, SALVAR!
+          <button className="sticker-btn is-pink" onClick={onConfirm}>
+            Salvar!
           </button>
         </div>
       </div>

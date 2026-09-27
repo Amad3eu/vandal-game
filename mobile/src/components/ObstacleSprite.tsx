@@ -1,18 +1,34 @@
 import { Image, View } from 'react-native'
 import { ARTIST_INFO, type Obstacle } from '../shared'
-import { POWER_JUMP, POWER_LIGHTNING, SPRAY_FRAMES, TRAIN_FRAMES } from '../sprites'
+import { INTRO_TAG, INTRO_WALL, POWER_JUMP, POWER_LIGHTNING, SPRAY_FRAMES, TRAIN_FRAMES } from '../sprites'
 
 interface ObstacleSpriteProps {
   obstacle: Obstacle
   clock: number
+  /** How much of the intro wall's tag is painted (0..1). */
+  tagProgress?: number
 }
 
 const at = (x: number, y: number, width: number, height: number) =>
   ({ position: 'absolute', left: x, top: y, width, height }) as const
 
 // Positions mirror the web's Obstacle.css so hitboxes and drawings line up the same way.
-export default function ObstacleSprite({ obstacle: o, clock }: ObstacleSpriteProps) {
+export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: ObstacleSpriteProps) {
   switch (o.type) {
+    case 'wall': {
+      // Brick wall from the intro, with the tag painted in from the left (like the web's clip-path).
+      const tagWidth = o.width * 0.86
+      const tagHeight = tagWidth * (26 / 76)
+      return (
+        <View style={at(o.x, o.y, o.width, o.height)}>
+          <Image source={INTRO_WALL} fadeDuration={0} style={{ position: 'absolute', left: 0, top: 0, width: o.width, height: o.height }} />
+          <View style={{ position: 'absolute', left: o.width * 0.07, top: o.height * 0.22, width: tagWidth * tagProgress, height: tagHeight, overflow: 'hidden' }}>
+            <Image source={INTRO_TAG} fadeDuration={0} style={{ width: tagWidth, height: tagHeight }} />
+          </View>
+        </View>
+      )
+    }
+
     case 'spray':
       return (
         <Image
@@ -23,7 +39,6 @@ export default function ObstacleSprite({ obstacle: o, clock }: ObstacleSpritePro
       )
 
     case 'train':
-    case 'floating-platform':
       // The drawn roof lines up with the platform top (where the player's feet are drawn).
       return (
         <Image
@@ -32,6 +47,54 @@ export default function ObstacleSprite({ obstacle: o, clock }: ObstacleSpritePro
           style={at(o.x + o.width / 2 - 112, o.y - 3, 224, 112)}
         />
       )
+
+    case 'floating-platform': {
+      // Checkpoint climb step: a scaffold beam with diagonal hazard stripes and two brackets.
+      const stripes = Math.ceil(o.width / 28) + 1
+      return (
+        <View style={at(o.x, o.y, o.width, o.height)}>
+          <View style={{ position: 'absolute', left: '12%', top: o.height, width: 10, height: 26, backgroundColor: '#3a4050', borderWidth: 2, borderTopWidth: 0, borderColor: '#1f2430' }} />
+          <View style={{ position: 'absolute', right: '12%', top: o.height, width: 10, height: 26, backgroundColor: '#3a4050', borderWidth: 2, borderTopWidth: 0, borderColor: '#1f2430' }} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, overflow: 'hidden', borderRadius: 4, borderWidth: 3, borderColor: '#1f2430', backgroundColor: '#2b2f3a' }}>
+            {Array.from({ length: stripes }, (_, i) => (
+              <View key={i} style={{ position: 'absolute', left: i * 28 - 10, top: -4, width: 14, height: o.height + 8, backgroundColor: '#ffd23f', transform: [{ skewX: '-45deg' }] }} />
+            ))}
+            <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.35)' }} />
+          </View>
+        </View>
+      )
+    }
+
+    case 'checkpoint': {
+      // Grey pole with a pink flag hanging low; once grabbed it goes up and turns green.
+      const wave = 1 - 0.08 * (0.5 + 0.5 * Math.sin(clock / 140))
+      return (
+        <View style={at(o.x, o.y, o.width, o.height)}>
+          <View style={{ position: 'absolute', left: 8, top: 0, bottom: 0, width: 7, borderRadius: 4, backgroundColor: '#d1d5db', borderWidth: 2, borderColor: '#1f2430' }} />
+          <View
+            style={{
+              position: 'absolute',
+              left: 15,
+              top: o.reached ? 4 : o.height * 0.38,
+              width: 46,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#1f2430',
+              borderTopRightRadius: 6,
+              borderBottomRightRadius: 6,
+              backgroundColor: o.reached ? '#34d399' : '#ff4d9d',
+              transformOrigin: 'left center',
+              transform: [{ scaleX: wave }],
+            }}
+          >
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' }} />
+          </View>
+          <View style={{ position: 'absolute', left: -2, bottom: 0, width: 28, height: 8, borderRadius: 3, backgroundColor: '#3a4050', borderWidth: 2, borderColor: '#1f2430' }} />
+        </View>
+      )
+    }
 
     case 'power-lightning':
     case 'power-jump':
