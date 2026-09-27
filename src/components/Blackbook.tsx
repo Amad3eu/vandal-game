@@ -1,6 +1,7 @@
-
 import { useState } from 'react'
-import { GraffitiArt, GraffitiArtist } from '../types/game'
+import type { CSSProperties } from 'react'
+import { GraffitiArt } from '../types/game'
+import { ARTIST_INFO } from '../data/graffitiArtists'
 import DrawingCanvas from './DrawingCanvas'
 import './Blackbook.css'
 
@@ -9,41 +10,75 @@ interface BlackbookProps {
   onClose: () => void
 }
 
-const ARTIST_COLORS: Record<GraffitiArtist, string> = {
-  remo: '#FF6B6B',
-  pixo: '#4ECDC4',
-  nina: '#FFE66D',
+interface Sketch {
+  id: string
+  imageData: string
+  timestamp: number
 }
 
-const ARTIST_NAMES: Record<GraffitiArtist, string> = {
-  remo: 'Remo',
-  pixo: 'Pixo',
-  nina: 'Nina',
-}
-
-
-// Rascunhos livres ficam no localStorage separados
+// Free sketches are kept apart from the artists' pieces.
 const LOCAL_STORAGE_KEY = 'dinoGameSketchbook'
 
-function getInitialSketches() {
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY)
-  return saved ? JSON.parse(saved) : []
+function getInitialSketches(): Sketch[] {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+const formatDate = (timestamp: number) =>
+  new Date(timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+
+function download(imageData: string, name: string) {
+  const a = document.createElement('a')
+  a.href = imageData
+  a.download = name
+  a.click()
+}
+
+interface ArtStickerProps {
+  image: string
+  alt: string
+  label: string
+  color: string
+  timestamp: number
+  fileName: string
+  index: number
+}
+
+/** A piece taped into the book: the whole image (never cropped), a label and a download button. */
+function ArtSticker({ image, alt, label, color, timestamp, fileName, index }: ArtStickerProps) {
+  const tilt = index % 3 === 0 ? -1.6 : index % 3 === 1 ? 1.2 : -0.6
+  return (
+    <figure className="art-sticker" style={{ '--tilt': `${tilt}deg` } as CSSProperties}>
+      <span className="tape" />
+      <div className="art-frame">
+        <img src={image} alt={alt} loading="lazy" />
+      </div>
+      <figcaption>
+        <span className="art-label" style={{ backgroundColor: color }}>
+          {label}
+        </span>
+        <span className="art-date">{formatDate(timestamp)}</span>
+        <button type="button" className="art-download" onClick={() => download(image, fileName)} aria-label={`Baixar ${alt}`}>
+          ⬇
+        </button>
+      </figcaption>
+    </figure>
+  )
 }
 
 export default function Blackbook({ arts, onClose }: BlackbookProps) {
-  const [tab, setTab] = useState<'sketchbook' | 'signatures'>('sketchbook')
-  const [sketches, setSketches] = useState<any[]>(getInitialSketches)
+  const [tab, setTab] = useState<'sketchbook' | 'signatures'>(() => (arts.length > 0 ? 'signatures' : 'sketchbook'))
+  const [sketches, setSketches] = useState<Sketch[]>(getInitialSketches)
   const [showDrawing, setShowDrawing] = useState(false)
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp)
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  }
 
   const artistSignatures = arts.filter((art) => art.type === 'artist-signature')
   const mySignatures = arts.filter((art) => art.type === 'my-signature')
+  const total = arts.length + sketches.length
 
-  // Salvar novo rascunho
   const handleSaveSketch = (imageData: string) => {
     const newSketch = {
       id: Date.now().toString() + Math.random().toString(36).slice(2),
@@ -52,138 +87,145 @@ export default function Blackbook({ arts, onClose }: BlackbookProps) {
     }
     const updated = [newSketch, ...sketches]
     setSketches(updated)
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated))
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated))
+    } catch {
+      // Storage full or blocked: the sketch still shows until the book is closed.
+    }
     setShowDrawing(false)
   }
 
-  // Baixar imagem
-  const handleDownload = (imageData: string, name = 'blackbook-art.png') => {
-    const a = document.createElement('a')
-    a.href = imageData
-    a.download = name
-    a.click()
-  }
-
   return (
-    <div className="blackbook-overlay">
-      <div className="blackbook-container blackbook-paper">
-        <div className="blackbook-header">
-          <h2>🖊️ Blackbook</h2>
-          <div className="blackbook-tabs">
-            <button className={tab === 'sketchbook' ? 'active' : ''} onClick={() => setTab('sketchbook')}>Rascunhos Livres</button>
-            <button className={tab === 'signatures' ? 'active' : ''} onClick={() => setTab('signatures')}>Assinaturas Coletadas</button>
+    <div className="street-backdrop blackbook-backdrop">
+      <div className="blackbook" role="dialog" aria-labelledby="blackbook-title">
+        <header className="blackbook-top">
+          <div className="blackbook-heading">
+            <h2 id="blackbook-title" className="blackbook-title">Blackbook</h2>
+            <span className="blackbook-count">
+              {total} {total === 1 ? 'obra' : 'obras'}
+            </span>
           </div>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button type="button" className="sticker-btn is-small blackbook-close" onClick={onClose} aria-label="Fechar blackbook">
+            ✕
+          </button>
+        </header>
+
+        <div className="blackbook-tabs" role="tablist" aria-label="Seções do blackbook">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'sketchbook'}
+            className={tab === 'sketchbook' ? 'active' : ''}
+            onClick={() => setTab('sketchbook')}
+          >
+            ✏️ Rascunhos <span className="tab-count">{sketches.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'signatures'}
+            className={tab === 'signatures' ? 'active' : ''}
+            onClick={() => setTab('signatures')}
+          >
+            🖊️ Assinaturas <span className="tab-count">{arts.length}</span>
+          </button>
         </div>
 
-        {tab === 'sketchbook' && (
-          <div className="blackbook-section">
-            <div className="sketchbook-header">
-              <h3>Rascunhe, crie e baixe suas artes!</h3>
-              <button className="btn-new-sketch" onClick={() => setShowDrawing(true)}>Novo Rascunho</button>
-            </div>
-            {showDrawing && (
-              <DrawingCanvas
-                artist="Livre"
-                onDone={handleSaveSketch}
-                onCancel={() => setShowDrawing(false)}
-                title="Rascunho"
-              />
-            )}
-            {sketches.length === 0 && !showDrawing && (
-              <div className="blackbook-empty">
-                <p>Seu caderno de rascunhos está vazio...</p>
-                <p className="empty-hint">Clique em "Novo Rascunho" para começar a desenhar!</p>
+        <div className="blackbook-pages" role="tabpanel">
+          {tab === 'sketchbook' && (
+            <section className="blackbook-section">
+              <div className="section-toolbar">
+                <p>Rascunhe, crie e baixe suas artes.</p>
+                <button type="button" className="sticker-btn is-pink is-small" onClick={() => setShowDrawing(true)}>
+                  + Novo rascunho
+                </button>
               </div>
-            )}
-            <div className="blackbook-gallery">
-              {sketches.map((sketch) => (
-                <div key={sketch.id} className="art-item">
-                  <div className="art-card">
-                    <img src={sketch.imageData} alt="Rascunho" />
-                  </div>
-                  <div className="art-info">
-                    <div className="artist-badge my-signature-badge">Rascunho</div>
-                    <p className="art-date">{formatDate(sketch.timestamp)}</p>
-                    <button className="btn-download" onClick={() => handleDownload(sketch.imageData, `rascunho-${sketch.id}.png`)}>Baixar</button>
-                  </div>
+              {sketches.length === 0 ? (
+                <div className="blackbook-empty">
+                  <p>Página em branco…</p>
+                  <p className="empty-hint">Toque em “Novo rascunho” para começar a desenhar.</p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              ) : (
+                <div className="art-grid">
+                  {sketches.map((sketch, index) => (
+                    <ArtSticker
+                      key={sketch.id}
+                      index={index}
+                      image={sketch.imageData}
+                      alt="Rascunho"
+                      label="Rascunho"
+                      color="var(--spray-cyan)"
+                      timestamp={sketch.timestamp}
+                      fileName={`rascunho-${sketch.id}.png`}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
-        {tab === 'signatures' && (
-          <>
-            {arts.length === 0 ? (
+          {tab === 'signatures' &&
+            (arts.length === 0 ? (
               <div className="blackbook-empty">
-                <p>Seu blackbook está vazio...</p>
-                <p className="empty-hint">
-                  Complete desafios com os grafiteiros para preencher seu caderno!
-                </p>
+                <p>Nenhuma assinatura ainda…</p>
+                <p className="empty-hint">Encontre grafiteiros durante a corrida para trocar assinaturas.</p>
               </div>
             ) : (
               <>
                 {artistSignatures.length > 0 && (
-                  <div className="blackbook-section">
-                    <h3 className="section-title">📝 Assinaturas Coletadas</h3>
-                    <div className="blackbook-gallery">
-                      {artistSignatures.map((art) => (
-                        <div key={art.id} className="art-item">
-                          <div className="art-card">
-                            <img src={art.imageData} alt={`Assinatura de ${ARTIST_NAMES[art.artist]}`} />
-                          </div>
-                          <div className="art-info">
-                            <div
-                              className="artist-badge"
-                              style={{ backgroundColor: ARTIST_COLORS[art.artist] }}
-                            >
-                              {ARTIST_NAMES[art.artist]}
-                            </div>
-                            <p className="art-date">{formatDate(art.timestamp)}</p>
-                            <button className="btn-download" onClick={() => handleDownload(art.imageData, `assinatura-${art.artist}.png`)}>Baixar</button>
-                          </div>
-                        </div>
+                  <section className="blackbook-section">
+                    <h3 className="section-title">Coletadas na rua</h3>
+                    <div className="art-grid">
+                      {artistSignatures.map((art, index) => (
+                        <ArtSticker
+                          key={art.id}
+                          index={index}
+                          image={art.imageData}
+                          alt={`Assinatura de ${ARTIST_INFO[art.artist].name}`}
+                          label={ARTIST_INFO[art.artist].name}
+                          color={ARTIST_INFO[art.artist].color}
+                          timestamp={art.timestamp}
+                          fileName={`assinatura-${art.artist}.png`}
+                        />
                       ))}
                     </div>
-                  </div>
+                  </section>
                 )}
 
                 {mySignatures.length > 0 && (
-                  <div className="blackbook-section">
-                    <h3 className="section-title">🎭 Minhas Assinaturas</h3>
-                    <div className="blackbook-gallery">
-                      {mySignatures.map((art) => (
-                        <div key={art.id} className="art-item">
-                          <div className="art-card">
-                            <img src={art.imageData} alt={`Meu desenho para ${ARTIST_NAMES[art.artist]}`} />
-                          </div>
-                          <div className="art-info">
-                            <div
-                              className="artist-badge my-signature-badge"
-                              style={{ backgroundColor: ARTIST_COLORS[art.artist] }}
-                            >
-                              Para {ARTIST_NAMES[art.artist]}
-                            </div>
-                            <p className="art-date">{formatDate(art.timestamp)}</p>
-                            <button className="btn-download" onClick={() => handleDownload(art.imageData, `minha-assinatura-${art.artist}.png`)}>Baixar</button>
-                          </div>
-                        </div>
+                  <section className="blackbook-section">
+                    <h3 className="section-title">Minhas assinaturas</h3>
+                    <div className="art-grid">
+                      {mySignatures.map((art, index) => (
+                        <ArtSticker
+                          key={art.id}
+                          index={index + 1}
+                          image={art.imageData}
+                          alt={`Meu desenho para ${ARTIST_INFO[art.artist].name}`}
+                          label={`Para ${ARTIST_INFO[art.artist].name}`}
+                          color={ARTIST_INFO[art.artist].color}
+                          timestamp={art.timestamp}
+                          fileName={`minha-assinatura-${art.artist}.png`}
+                        />
                       ))}
                     </div>
-                  </div>
+                  </section>
                 )}
               </>
-            )}
-          </>
-        )}
-
-        <div className="blackbook-footer">
-          <button className="btn-close-footer" onClick={onClose}>
-            FECHAR
-          </button>
+            ))}
         </div>
+
+        <footer className="blackbook-bottom">
+          <button type="button" className="sticker-btn is-yellow" onClick={onClose}>
+            Fechar
+          </button>
+        </footer>
       </div>
+
+      {/* Outside the book so its fixed overlay covers the whole screen. */}
+      {showDrawing && (
+        <DrawingCanvas artist="Livre" title="Rascunho" onDone={handleSaveSketch} onCancel={() => setShowDrawing(false)} />
+      )}
     </div>
   )
 }

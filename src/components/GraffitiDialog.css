@@ -1,243 +1,285 @@
-.graffiti-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+/* Graffiti artist encounter: a paper sticker with the artist on the left and the talk on the
+   right. Everything can shrink (min-width: 0) and it scrolls inside the screen if it must. */
+.street-dialog {
+  position: relative;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 24px;
+  width: min(640px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 28px;
+  font-family: var(--font-body);
+  animation: stickerPop 0.25s ease-out;
+}
+
+/* Stripe of the artist's color along the top, like a spray line. */
+.street-dialog::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: -3px;
+  height: 8px;
+  border-radius: 0 0 8px 8px;
+  background: var(--artist, var(--spray-pink));
+  border: 3px solid var(--ink);
+  border-top: none;
+}
+
+.street-dialog-artist {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
+  gap: 6px;
+  text-align: center;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.artist-tag-name {
+  margin-top: 4px;
+  font-family: var(--font-tag);
+  font-size: 2.6rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--artist, var(--spray-pink));
+  -webkit-text-stroke: 2px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-4deg);
 }
 
-.graffiti-dialog-container {
-  background: white;
-  border-radius: 16px;
-  padding: 40px;
-  max-width: 500px;
-  width: 90%;
-  display: flex;
-  gap: 30px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: slideIn 0.3s ease;
+.artist-role {
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-ink);
 }
 
-@keyframes slideIn {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.artist-character-display {
+/* Portrait drawn with blocks: hoodie, head, cap and spray can over a halftone disc. */
+.artist-portrait {
+  position: relative;
+  width: 132px;
+  height: 132px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.artist-avatar {
-  width: 100px;
-  height: 100px;
+  border: 3px solid var(--ink);
   border-radius: 50%;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  background:
+    radial-gradient(rgba(20, 15, 31, 0.18) 1.5px, transparent 2px) 0 0 / 9px 9px,
+    var(--night-2);
+  box-shadow: var(--shadow-hard);
 }
 
-.dialog-content {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  flex: 1;
+.artist-portrait span {
+  position: absolute;
+  display: block;
 }
 
-.artist-name {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 800;
-  color: #333;
-  letter-spacing: -0.5px;
+.portrait-body {
+  left: 26px;
+  bottom: -14px;
+  width: 80px;
+  height: 62px;
+  border: 3px solid var(--ink);
+  border-radius: 28px 28px 0 0;
+  background: var(--artist, var(--spray-pink));
 }
 
-.artist-quote {
-  margin: 5px 0 10px 0;
-  font-size: 14px;
-  color: #666;
-  font-style: italic;
-  line-height: 1.4;
-}
-
-.dialog-question {
-  background: #f5f5f5;
-  padding: 15px;
-  border-radius: 8px;
-  margin: 10px 0;
-}
-
-.dialog-question p {
-  margin: 0;
-  font-size: 15px;
-  color: #444;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.dialog-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 15px;
-}
-
-.btn-yes,
-.btn-no {
-  flex: 1;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.btn-yes {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-yes:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.btn-yes:active {
-  transform: translateY(0);
-}
-
-.btn-no {
-  background: #e0e0e0;
-  color: #333;
-}
-
-.btn-no:hover {
-  background: #d0d0d0;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-}
-
-.btn-no:active {
-  transform: translateY(0);
-}
-
-.btn-view-signature {
-  width: 100%;
-  padding: 12px 20px;
-  border: 2px solid #667eea;
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  color: #333;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 10px 0;
-}
-
-.btn-view-signature:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
-  border-color: #764ba2;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.btn-back {
-  background: #f0f0f0;
-  color: #333;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-back:hover {
-  background: #e0e0e0;
-  transform: translateY(-2px);
-}
-
-.signature-preview {
-  background: #f9f9f9;
-  border: 2px solid #ddd;
+.portrait-head {
+  left: 44px;
+  top: 34px;
+  width: 44px;
+  height: 46px;
+  border: 3px solid var(--ink);
   border-radius: 12px;
-  padding: 20px;
-  margin: 15px 0;
+  background: #c98a5b;
+}
+
+.portrait-cap {
+  left: 38px;
+  top: 26px;
+  width: 58px;
+  height: 20px;
+  border: 3px solid var(--ink);
+  border-radius: 12px 12px 4px 4px;
+  background: var(--ink);
+  box-shadow: inset 0 -5px 0 var(--artist, var(--spray-pink));
+}
+
+.portrait-can {
+  right: 16px;
+  top: 58px;
+  width: 16px;
+  height: 30px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--spray-yellow);
+  transform: rotate(18deg);
+}
+
+.portrait-mist {
+  right: 6px;
+  top: 40px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--artist, var(--spray-pink)) 0 30%, transparent 70%);
+  opacity: 0.8;
+  animation: sprayMist 1.2s ease-in-out infinite;
+}
+
+@keyframes sprayMist {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.9;
+  }
+}
+
+.street-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  align-items: center;
+  gap: 16px;
+  min-width: 0;
 }
 
-.signature-label {
+/* What the artist says, in a comic speech bubble pointing at the portrait. */
+.speech-bubble {
+  position: relative;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  padding: 14px 16px;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 1rem;
+  font-style: italic;
+  line-height: 1.45;
 }
 
-.signature-preview img {
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 22px;
+  border-width: 9px 14px 9px 0;
+  border-style: solid;
+  border-color: transparent var(--ink) transparent transparent;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 25px;
+  border-width: 6px 10px 6px 0;
+  border-style: solid;
+  border-color: transparent #fff transparent transparent;
+}
+
+.dialog-ask {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.street-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Main action on its own row, the others side by side below it. */
+.street-dialog-actions .sticker-btn {
+  flex: 1 1 0;
+}
+
+.street-dialog-actions .sticker-btn.is-pink {
+  flex-basis: 100%;
+  padding-block: 14px;
+  font-size: 1.2rem;
+}
+
+.street-dialog-actions .sticker-btn.is-ghost {
+  color: var(--muted-ink);
+}
+
+/* The artist's signature as a white sticker taped to the paper. */
+.signature-sticker {
+  position: relative;
+  margin: 8px 0 0;
+  padding: 18px 16px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow-hard);
+  transform: rotate(-1.5deg);
+  text-align: center;
+}
+
+.signature-sticker img {
+  display: block;
   width: 100%;
-  max-width: 350px;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  background: white;
-  padding: 10px;
+  max-height: 150px;
+  object-fit: contain;
 }
 
-@media (max-width: 600px) {
-  .graffiti-dialog-container {
-    flex-direction: column;
-    padding: 30px 20px;
-    gap: 20px;
+.signature-sticker figcaption {
+  margin-top: 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-ink);
+}
+
+/* Phones: artist on top, talk below, bubble pointing up. */
+@media (max-width: 560px) {
+  .street-dialog {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 22px 18px;
   }
 
-  .artist-character-display {
-    order: -1;
+  .street-dialog-artist {
+    flex-direction: row;
+    justify-content: center;
+    gap: 14px;
   }
 
-  .artist-avatar {
-    width: 80px;
-    height: 80px;
+  /* Same drawing, smaller: the blocks are laid out for 132px. */
+  .artist-portrait {
+    margin: -17px;
+    transform: scale(0.74);
   }
 
-  .artist-name {
-    font-size: 20px;
+  .artist-tag-name {
+    font-size: 2.2rem;
   }
 
-  .btn-yes,
-  .btn-no {
-    padding: 10px 16px;
-    font-size: 14px;
+  .artist-role {
+    display: none;
+  }
+
+  .speech-bubble::before {
+    left: 40px;
+    top: -14px;
+    border-width: 0 9px 14px 9px;
+    border-color: transparent transparent var(--ink) transparent;
+  }
+
+  .speech-bubble::after {
+    left: 43px;
+    top: -9px;
+    border-width: 0 6px 10px 6px;
+    border-color: transparent transparent #fff transparent;
   }
 }

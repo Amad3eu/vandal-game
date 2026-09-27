@@ -1,3 +1,24 @@
+/* Vandal UI: street-poster colors and fonts shared by the menu, dialogs and blackbook. */
+:root {
+  --ink: #140f1f;
+  --night: #1f1147;
+  --night-2: #2d1b63;
+  --paper: #fff6e5;
+  --paper-2: #f4e7cd;
+  --spray-pink: #ff4d9d;
+  --spray-yellow: #ffd23f;
+  --spray-cyan: #4ecdc4;
+  --spray-coral: #ff6b6b;
+  --spray-green: #34d399;
+  --muted-ink: #5b5170;
+  --font-tag: 'Sedgwick Ave Display', 'Permanent Marker', cursive;
+  --font-display: 'Bungee', 'Arial Black', sans-serif;
+  --font-pixel: 'Silkscreen', 'Courier New', monospace;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --shadow-hard: 4px 4px 0 var(--ink);
+  --shadow-hard-lg: 7px 7px 0 var(--ink);
+}
+
 * {
   margin: 0;
   padding: 0;

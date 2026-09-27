@@ -1,0 +1,158 @@
+/*
+ * Vandal UI building blocks (street stickers over pixel art), used by the title screen, the
+ * graffiti artist dialogs and the blackbook. Colors and fonts come from :root in index.css.
+ */
+
+/* Sticker button: thick ink outline and a hard shadow that "presses" on click. */
+.sticker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 20px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-hard);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sticker-btn:hover {
+  transform: translate(-1px, -2px) rotate(-1deg);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.sticker-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.sticker-btn:focus-visible {
+  outline: 3px dashed var(--spray-yellow);
+  outline-offset: 4px;
+}
+
+.sticker-btn.is-pink {
+  background: var(--spray-pink);
+  color: #fff;
+}
+
+.sticker-btn.is-yellow {
+  background: var(--spray-yellow);
+}
+
+.sticker-btn.is-green {
+  background: var(--spray-green);
+}
+
+.sticker-btn.is-cyan {
+  background: var(--spray-cyan);
+}
+
+.sticker-btn.is-ghost {
+  background: transparent;
+  box-shadow: none;
+  border-color: currentColor;
+}
+
+.sticker-btn.is-ghost:hover {
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sticker-btn.is-small {
+  padding: 7px 12px;
+  border-width: 2px;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+/* Paper panel pasted on the wall. */
+.paper-panel {
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard-lg);
+}
+
+/* Strip of masking tape stuck on top of a card. */
+.tape {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 84px;
+  height: 22px;
+  transform: translateX(-50%) rotate(-3deg);
+  background: rgba(255, 229, 153, 0.85);
+  border-left: 2px dashed rgba(20, 15, 31, 0.18);
+  border-right: 2px dashed rgba(20, 15, 31, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+/* Visually hidden, still read by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Dark full-screen backdrop for dialogs, with a faint halftone. */
+.street-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the feedback button (1200), which would otherwise cover the dialog buttons. */
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background:
+    radial-gradient(rgba(255, 77, 157, 0.12) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    rgba(12, 8, 22, 0.78);
+  animation: streetFadeIn 0.2s ease;
+}
+
+@keyframes streetFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes stickerPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(-2deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticker-btn,
+  .street-backdrop {
+    transition: none;
+    animation: none;
+  }
+}
