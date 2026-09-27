@@ -105,6 +105,7 @@ export default function App() {
           key={runId}
           mode={progress.mode}
           totalCoins={progress.totalCoins}
+          highScore={progress.highScores[progress.mode]}
           checkpoint={runCheckpoint}
           onCoinsChange={handleCoinsChange}
           onGameOver={handleGameOver}

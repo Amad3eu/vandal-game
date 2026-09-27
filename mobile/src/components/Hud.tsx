@@ -1,70 +1,68 @@
+import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { RUNNER_TUNING, type GameMode, type GameView } from '../shared'
-import { PHASE_TAGS } from '../theme'
+import { FONTS, PHASE_TAGS, UI } from '../theme'
 
 interface HudProps {
   view: GameView
   mode: GameMode
-}
-
-function Item({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.item}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
-    </View>
-  )
-}
-
-function Tag({ text, background, color }: { text: string; background: string; color: string }) {
-  return <Text style={[styles.tag, { backgroundColor: background, color }]}>{text}</Text>
+  highScore: number
 }
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 
-/** Compact strip with the essentials, like the web HUD on phones. */
-export default function Hud({ view, mode }: HudProps) {
+function Sticker({ label, children, color = UI.paper, tilt = 0, testID }: { label: string; children: ReactNode; color?: string; tilt?: number; testID?: string }) {
+  return (
+    <View style={[styles.sticker, { backgroundColor: color, transform: [{ rotate: `${tilt}deg` }] }]}>
+      <Text style={styles.label}>{label}</Text>
+      {typeof children === 'string' || typeof children === 'number' ? (
+        <Text testID={testID} style={styles.value}>
+          {children}
+        </Text>
+      ) : (
+        children
+      )}
+    </View>
+  )
+}
+
+/** In-run HUD as a strip of stickers, like the web version. */
+export default function Hud({ view, mode, highScore }: HudProps) {
   const phase = PHASE_TAGS[view.phase]
   const dashReady = view.dashCooldownMs <= 0
+  const beatingRecord = highScore > 0 && view.score > highScore
   return (
     <View pointerEvents="none" style={styles.hud}>
-      <Item label="FASE">
-        <Tag text={phase.label} background={phase.background} color={phase.color} />
-      </Item>
-      <Item label="PONTOS">
-        <Text testID="hud-score" style={styles.value}>{view.score}</Text>
-      </Item>
-      <Item label="MOEDAS">
-        <Text style={styles.value}>{view.coins}</Text>
-      </Item>
+      <Sticker label="Fase" color={phase.background} tilt={-1}>
+        <Text style={[styles.value, { color: phase.color }]}>{phase.label}</Text>
+      </Sticker>
+      <Sticker label={beatingRecord ? 'Recorde!' : 'Pontos'} color={beatingRecord ? UI.pink : UI.paper} tilt={1}>
+        <Text testID="hud-score" style={[styles.value, styles.score, beatingRecord && { color: '#fff' }]}>
+          {view.score}
+        </Text>
+      </Sticker>
+      <Sticker label="Moedas" color={UI.yellow} tilt={-1}>
+        {view.coins}
+      </Sticker>
       {mode === 'runner' && (
-        <Item label="VELOCIDADE">
+        <Sticker label="Velocidade" tilt={1}>
           <View style={styles.speedBar}>
             <View style={[styles.speedFill, { width: `${Math.min(100, (view.speed / RUNNER_TUNING.maxSpeed) * 100)}%` }]} />
           </View>
-        </Item>
+        </Sticker>
       )}
-      <Item label="DASH">
-        <Tag
-          text={dashReady ? 'PRONTO' : seconds(view.dashCooldownMs)}
-          background={dashReady ? '#dcfce7' : '#e2e8f0'}
-          color={dashReady ? '#166534' : '#475569'}
-        />
-      </Item>
+      <Sticker label="Dash" color={dashReady ? UI.green : '#d7d2e4'} tilt={-1}>
+        {dashReady ? 'Pronto' : seconds(view.dashCooldownMs)}
+      </Sticker>
       {view.lightningMs > 0 && (
-        <Item label="RAIO">
-          <Tag text={seconds(view.lightningMs)} background="#dfe7ff" color="#223b9b" />
-        </Item>
+        <Sticker label="Raio" color="#9cc4ff" tilt={1}>
+          {seconds(view.lightningMs)}
+        </Sticker>
       )}
       {view.jumpBoostMs > 0 && (
-        <Item label="SUPER PULO">
-          <Tag text={seconds(view.jumpBoostMs)} background="#ffe8c2" color="#8f4a00" />
-        </Item>
-      )}
-      {view.grindCombo > 1 && (
-        <Item label="GRIND">
-          <Tag text={`x${view.grindCombo}`} background="#ffd23f" color="#1f1147" />
-        </Item>
+        <Sticker label="Super pulo" color="#ffc27a" tilt={-1}>
+          {seconds(view.jumpBoostMs)}
+        </Sticker>
       )}
     </View>
   )
@@ -76,48 +74,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
-    alignItems: 'center',
-    columnGap: 12,
-    rowGap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    maxWidth: 480,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 6,
+    maxWidth: 520,
+  },
+  sticker: {
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 3,
+    paddingBottom: 4,
+    borderWidth: 2,
+    borderColor: UI.ink,
+    borderRadius: 8,
   },
   label: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#666',
-    letterSpacing: 0.5,
+    fontFamily: FONTS.pixel,
+    fontSize: 9,
+    color: UI.ink,
+    opacity: 0.8,
+    textTransform: 'uppercase',
   },
   value: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#333',
+    fontFamily: FONTS.display,
+    fontSize: 14,
+    color: UI.ink,
   },
-  tag: {
-    fontSize: 11,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    overflow: 'hidden',
+  score: {
+    fontSize: 18,
   },
   speedBar: {
-    width: 56,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#e0e0e0',
+    width: 64,
+    height: 10,
+    marginTop: 3,
+    borderWidth: 2,
+    borderColor: UI.ink,
+    borderRadius: 5,
+    backgroundColor: '#fff',
     overflow: 'hidden',
   },
   speedFill: {
     height: '100%',
-    backgroundColor: '#667eea',
+    backgroundColor: UI.pink,
   },
 })
