@@ -53,8 +53,52 @@ export const BUILDING_EXTRA_AIRTIME_FRAMES = 40
 export const TRAMPOLINE_EXTRA_AIRTIME_FRAMES = 30
 
 // --- Phase system (Fase 1 Rua / Fase 2 Metrô / Fase 3 Telhados) ---
+// From these scores a climb of floating platforms shows up with a checkpoint flag on top.
+// Grabbing the flag opens the phase, and a game over can continue from there.
 export const PHASE_2_SCORE = 1200
 export const PHASE_3_SCORE = 3500
+export const CHECKPOINT_BONUS = 250
+/** A missed climb comes back after this many other obstacles. */
+export const CLIMB_RETRY_SPAWNS = 5
+/** Steps up to the flag: the climb to the rooftops (phase 3) is one step higher. */
+export const CLIMB_STEPS: Record<2 | 3, number> = { 2: 4, 3: 5 }
+export const CLIMB_FIRST_STEP = 88 // first step's top above the ground (as high as a train)
+export const CLIMB_STEP_RISE = 80
+// Step sizes in frames of running, turned into pixels with the speed when the climb shows up:
+// a jump covers more ground when faster, so fixed widths would leave almost no time to jump
+// from the higher steps. At the starting speed (6) a step is 288px wide with a 60px gap.
+export const CLIMB_STEP_FRAMES = 48
+export const CLIMB_GAP_FRAMES = 10
+export const CLIMB_TOP_FRAMES = 58
+export const CLIMB_PLATFORM_THICKNESS = 22
+export const CHECKPOINT_FLAG_WIDTH = 56
+export const CHECKPOINT_FLAG_HEIGHT = 130
+/** Runner: frames of room after the climb to drop from the top and land. */
+export const CLIMB_DROP_FRAMES = 50
+
+// --- Intro (Subway Surfers style): the player tags a wall until a cop shows up, hops and runs ---
+export const INTRO_TAG_MS = 1500 // spraying the tag on the wall
+export const INTRO_RUN_AT_MS = 2000 // the player notices the cop, hops and the run starts
+export const INTRO_RAMP_MS = 700 // the scroll speeds up from 0 to the run speed
+export const INTRO_PLAYER_OFFSET = 200 // the player starts further right so the cop fits behind
+export const INTRO_OFFSET_DECAY = 0.97 // per frame after the start, back to the runner's lane
+export const INTRO_HOP_POWER = 0.7 // the startled hop, as a fraction of a full jump
+export const INTRO_WALL_WIDTH = 264
+export const INTRO_WALL_HEIGHT = 150
+export const CHASER_ENTER_MS = 800 // the cop runs in from the left edge
+export const CHASER_SPEED = 7 // px per frame while running in
+export const CHASER_GAP = 190 // where the cop stops to shout, behind the player
+export const CHASER_MIN_GAP = 120 // the cop never gets closer than this (no catching mid-run)
+export const CHASER_KEEP_UP = 0.86 // runner: fraction of the scroll the cop keeps up with
+export const CHASER_FREE_SPEED = 4.2 // free mode: slower than walking...
+export const CHASER_FREE_CHASE_MS = 2600 // ...and gives up after this
+/** Continuing from a checkpoint: the player lands from this high instead of the intro. */
+export const CHECKPOINT_DROP_HEIGHT = 240
+
+// --- Vertical camera: follows the player up so the high platforms stay on screen ---
+export const CAMERA_TOP_MARGIN = 0.26 // keeps the player's head below this fraction of the height (clear of the HUD)
+export const CAMERA_FOLLOW_UP = 0.2
+export const CAMERA_FOLLOW_DOWN = 0.14
 
 // --- Variable jump height (Mario) ---
 export const JUMP_CUT_MULTIPLIER = 0.6 // velocity kept when the jump button is released mid-rise

@@ -5,6 +5,15 @@ import {
   BIRD_ALTITUDE,
   BUILDING_EXTRA_AIRTIME_FRAMES,
   BUILDING_WIDTH,
+  CHECKPOINT_FLAG_HEIGHT,
+  CHECKPOINT_FLAG_WIDTH,
+  CLIMB_FIRST_STEP,
+  CLIMB_GAP_FRAMES,
+  CLIMB_PLATFORM_THICKNESS,
+  CLIMB_STEP_FRAMES,
+  CLIMB_STEP_RISE,
+  CLIMB_STEPS,
+  CLIMB_TOP_FRAMES,
   FRAME_TIME,
   POWERUP_SIZE,
   TRAIN_PLATFORM_HEIGHT,
@@ -90,6 +99,62 @@ export function createFloatingPath(state: GameState): Obstacle[] {
   })
 
   return spawned
+}
+
+/**
+ * Stairs of floating platforms (one-way: you jump up through them) with a coin over each step
+ * and the checkpoint flag at the end of the top one. `speed` is how fast the player crosses
+ * them (px per frame). Returns the pieces and the climb's length.
+ */
+export function createClimb(state: GameState, phase: 2 | 3, speed: number) {
+  const startX = state.worldWidth + 20
+  const groundLevel = state.config.groundLevel
+  const steps = CLIMB_STEPS[phase]
+  const travel = Math.max(RUNNER_TUNING.initialSpeed, speed)
+  const stepWidth = Math.round(travel * CLIMB_STEP_FRAMES)
+  const stepGap = Math.round(travel * CLIMB_GAP_FRAMES)
+  const spawned: Obstacle[] = []
+  let x = startX
+
+  for (let i = 0; i < steps; i += 1) {
+    const isTop = i === steps - 1
+    const width = isTop ? Math.round(travel * CLIMB_TOP_FRAMES) : stepWidth
+    const y = groundLevel - CLIMB_FIRST_STEP - i * CLIMB_STEP_RISE
+    spawned.push({
+      id: state.nextObstacleId++,
+      x,
+      y,
+      width,
+      height: CLIMB_PLATFORM_THICKNESS,
+      type: 'floating-platform',
+      passed: false,
+    })
+    if (isTop) {
+      spawned.push({
+        id: state.nextObstacleId++,
+        x: x + width - CHECKPOINT_FLAG_WIDTH - 28,
+        y: y - CHECKPOINT_FLAG_HEIGHT,
+        width: CHECKPOINT_FLAG_WIDTH,
+        height: CHECKPOINT_FLAG_HEIGHT,
+        type: 'checkpoint',
+        phase,
+        passed: false,
+      })
+    } else {
+      spawned.push({
+        id: state.nextObstacleId++,
+        x: x + width / 2 - 9,
+        y: y - 64,
+        width: 18,
+        height: 18,
+        type: 'coin',
+        passed: false,
+      })
+    }
+    x += width + (isTop ? 0 : stepGap)
+  }
+
+  return { obstacles: spawned, length: x - startX }
 }
 
 export function createObstacle(state: GameState): Obstacle {

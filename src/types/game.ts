@@ -36,12 +36,27 @@ export interface Obstacle {
     | 'power-jump'
     | 'graffiti-artist'
     | 'building'
+    | 'checkpoint'
+    | 'wall'
   graffitiArtist?: GraffitiArtist
-  /** Building height variation, so tall walls can differ. */
+  /** Checkpoint flag: the phase it opens. */
+  phase?: GamePhase
+  /** Checkpoint flag already grabbed (it stays up, raised). */
+  reached?: boolean
   passed: boolean
 }
 
 export type GamePhase = 1 | 2 | 3
+
+/** Saved when a checkpoint flag is grabbed; a new run can continue from it. */
+export interface Checkpoint {
+  phase: GamePhase
+  score: number
+  /** Scroll speed at the flag, so the continued run isn't slower than where it stopped. */
+  speed: number
+  coins: number
+  signatures: GraffitiArtist[]
+}
 
 /** 'runner' = estilo dino do Google (o cenário vem até você); 'free' = andar livre com WASD. */
 export type GameMode = 'runner' | 'free'

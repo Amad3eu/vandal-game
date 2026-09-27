@@ -5,6 +5,7 @@
  * the returned events and draws getView(state).
  */
 import type {
+  Checkpoint,
   DinosaurState,
   GameConfig,
   GameMode,
@@ -17,6 +18,20 @@ import { FREE_TUNING, RUNNER_TUNING } from '../data/gameModes'
 import {
   BASE_CONFIG,
   BASE_X,
+  CAMERA_FOLLOW_DOWN,
+  CAMERA_FOLLOW_UP,
+  CAMERA_TOP_MARGIN,
+  CHASER_ENTER_MS,
+  CHASER_FREE_CHASE_MS,
+  CHASER_FREE_SPEED,
+  CHASER_GAP,
+  CHASER_KEEP_UP,
+  CHASER_MIN_GAP,
+  CHASER_SPEED,
+  CHECKPOINT_BONUS,
+  CHECKPOINT_DROP_HEIGHT,
+  CLIMB_DROP_FRAMES,
+  CLIMB_RETRY_SPAWNS,
   COIN_SCORE,
   COYOTE_TIME_MS,
   DASH_COOLDOWN_MS,
@@ -31,6 +46,14 @@ import {
   GRIND_TICK_MS,
   GRIND_TICK_SCORE,
   GROUND_RATIO,
+  INTRO_HOP_POWER,
+  INTRO_OFFSET_DECAY,
+  INTRO_PLAYER_OFFSET,
+  INTRO_RAMP_MS,
+  INTRO_RUN_AT_MS,
+  INTRO_TAG_MS,
+  INTRO_WALL_HEIGHT,
+  INTRO_WALL_WIDTH,
   JUMP_BOOST_DURATION_MS,
   JUMP_BOOST_MULTIPLIER,
   JUMP_BUFFER_MS,
@@ -52,13 +75,21 @@ import {
   WALL_JUMP_POWER_MULT,
 } from './config'
 import { approach, checkCollision, moveAgainstBuildings, updatePlayerPosition } from './physics'
-import { createFloatingPath, createObstacle, getSpawnGap, spacingAfter } from './spawn'
+import { createClimb, createFloatingPath, createObstacle, getSpawnGap, spacingAfter } from './spawn'
+
+/** The cop from the intro: runs in, shouts, chases and falls behind (or gives up). */
+export interface Chaser {
+  /** Left edge on screen, in game pixels, like an obstacle. */
+  x: number
+  state: 'enter' | 'shout' | 'chase' | 'giveup'
+}
 
 export interface GameState {
   mode: GameMode
   config: GameConfig
-  /** Width of the visible world in game pixels (obstacles spawn just past it). */
+  /** Size of the visible world in game pixels (obstacles spawn just past its right edge). */
   worldWidth: number
+  worldHeight: number
   random: () => number
 
   player: DinosaurState
@@ -74,6 +105,21 @@ export interface GameState {
   /** Artists signed in this run. */
   signatures: GraffitiArtist[]
   phase: GamePhase
+  /** Time since the current phase began (front ends show a banner and fade to night). */
+  phaseMs: number
+  /** Last checkpoint flag grabbed in this run (or the one the run continued from). */
+  checkpoint: Checkpoint | null
+  /** Obstacles left before a missed checkpoint climb can show up again. */
+  climbCooldown: number
+  /** How far the view is moved down to follow the player up (0 = the floor at its place). */
+  cameraY: number
+  /** The run opens with the tagging intro (see INTRO_* in config). */
+  intro: boolean
+  /** Time since the run began, intro included. */
+  introMs: number
+  /** Runner: extra x the player starts with during the intro, easing back to the lane. */
+  introOffset: number
+  chaser: Chaser | null
   speed: number
   /** Scroll speed including power-up boosts (px per 60fps frame). */
   effectiveSpeed: number
@@ -109,7 +155,8 @@ export interface GameState {
 export type GameEvent =
   | { type: 'coin' }
   | { type: 'artist'; artist: GraffitiArtist }
-  | { type: 'gameOver'; score: number }
+  | { type: 'checkpoint'; phase: GamePhase }
+  | { type: 'gameOver'; score: number; checkpoint: Checkpoint | null }
 
 /** What a front end needs to draw a frame. */
 export interface GameView {
@@ -120,6 +167,14 @@ export interface GameView {
   totalCoins: number
   signatures: GraffitiArtist[]
   phase: GamePhase
+  phaseMs: number
+  /** Draw the world (floor, obstacles, player) this much lower: the camera following the player up. */
+  cameraY: number
+  /** Intro beats: spraying the wall, then noticing the cop; null once running. */
+  introStage: 'tag' | 'alert' | null
+  /** How much of the intro tag is painted (0..1). */
+  tagProgress: number
+  chaser: Chaser | null
   speed: number
   skateMs: number
   skateFlickering: boolean
@@ -138,6 +193,10 @@ interface CreateGameOptions {
   width: number
   height: number
   totalCoins?: number
+  /** Continue from a checkpoint of an earlier run: its phase, score, speed, coins and signatures. */
+  checkpoint?: Checkpoint | null
+  /** Open with the tagging intro and the cop (ignored when continuing: the player drops in). */
+  intro?: boolean
   random?: () => number
 }
 
@@ -152,21 +211,27 @@ export function createGameState({
   width,
   height,
   totalCoins = 0,
+  checkpoint = null,
+  intro = false,
   random = Math.random,
 }: CreateGameOptions): GameState {
   const config: GameConfig = { ...BASE_CONFIG, groundLevel: Math.round(height * GROUND_RATIO) }
+  const withIntro = intro && !checkpoint
+  // Continuing from a checkpoint the player drops in from above, already running.
+  const dropIn = checkpoint ? CHECKPOINT_DROP_HEIGHT : 0
   const state: GameState = {
     mode,
     config,
     worldWidth: width,
+    worldHeight: height,
     random,
     player: {
-      x: BASE_X,
-      y: config.groundLevel - config.playerSize,
+      x: BASE_X + (withIntro ? INTRO_PLAYER_OFFSET : 0),
+      y: config.groundLevel - config.playerSize - dropIn,
       velocityY: 0,
       velocityX: 0,
       facing: 1,
-      isJumping: false,
+      isJumping: dropIn > 0,
       isDucking: false,
       width: config.playerSize,
       height: config.playerSize,
@@ -175,13 +240,21 @@ export function createGameState({
     nextObstacleId: 0,
     spawnDistance: 0,
     nextSpawnGap: 0,
-    score: 0,
-    coins: 0,
+    score: checkpoint?.score ?? 0,
+    coins: checkpoint?.coins ?? 0,
     totalCoins,
-    signatures: [],
-    phase: 1,
-    speed: config.initialSpeed,
-    effectiveSpeed: config.initialSpeed,
+    signatures: checkpoint ? [...checkpoint.signatures] : [],
+    phase: checkpoint?.phase ?? 1,
+    phaseMs: 0,
+    checkpoint,
+    climbCooldown: 0,
+    cameraY: 0,
+    intro: withIntro,
+    introMs: 0,
+    introOffset: withIntro && mode === 'runner' ? INTRO_PLAYER_OFFSET : 0,
+    chaser: withIntro ? { x: -130, state: 'enter' } : null,
+    speed: checkpoint?.speed ?? config.initialSpeed,
+    effectiveSpeed: checkpoint?.speed ?? config.initialSpeed,
     jumpBufferMs: 0,
     coyoteMs: 0,
     skateMs: 0,
@@ -197,7 +270,7 @@ export function createGameState({
     wallClingMs: 0,
     wallSide: 1,
     wallId: null,
-    grounded: true,
+    grounded: dropIn === 0,
     jumpHeld: false,
     jumpCutArmed: false,
     jumpTakeoffY: 0,
@@ -207,17 +280,42 @@ export function createGameState({
     artistEncounterId: null,
   }
   state.nextSpawnGap = getSpawnGap(state, state.speed) * 0.5
+  if (withIntro) {
+    // The wall being tagged, right in front of the player; it scrolls away once the run starts.
+    state.obstacles.push({
+      id: state.nextObstacleId++,
+      x: state.player.x + 76,
+      y: config.groundLevel + 6 - INTRO_WALL_HEIGHT,
+      width: INTRO_WALL_WIDTH,
+      height: INTRO_WALL_HEIGHT,
+      type: 'wall',
+      passed: false,
+    })
+  }
   return state
+}
+
+/** Still in the intro, before the run starts (the world doesn't move, input only skips it). */
+function beforeRun(state: GameState) {
+  return state.intro && state.introMs < INTRO_RUN_AT_MS
+}
+
+/** 0 → 1 as the scroll picks up after the intro. */
+function introRamp(state: GameState) {
+  if (!state.intro) return 1
+  return Math.min(1, Math.max(0, (state.introMs - INTRO_RUN_AT_MS) / INTRO_RAMP_MS))
 }
 
 /** Window resize or phone rotation: move the floor, keeping obstacles and the player on it. */
 export function resizeWorld(state: GameState, width: number, height: number) {
   state.worldWidth = width
+  state.worldHeight = height
   const groundLevel = Math.round(height * GROUND_RATIO)
   const groundShift = groundLevel - state.config.groundLevel
   if (groundShift === 0) return
 
   state.config = { ...state.config, groundLevel }
+  state.cameraY = 0
   state.obstacles = state.obstacles.map((obs) => ({ ...obs, y: obs.y + groundShift }))
   const size = state.config.playerSize
   state.player = {
@@ -231,10 +329,11 @@ export function resizeWorld(state: GameState, width: number, height: number) {
   }
 }
 
-function getPhase(score: number): GamePhase {
-  if (score >= PHASE_3_SCORE) return 3
-  if (score >= PHASE_2_SCORE) return 2
-  return 1
+/** The phase whose checkpoint climb is due (the score is there but its flag isn't), if any. */
+function dueClimb(state: GameState): 2 | 3 | null {
+  if (state.phase === 1 && state.score >= PHASE_2_SCORE) return 2
+  if (state.phase === 2 && state.score >= PHASE_3_SCORE) return 3
+  return null
 }
 
 // Starts a jump from where the player stands, standing up first if ducked (feet stay put,
@@ -260,6 +359,8 @@ function launchJump(state: GameState, dino: DinosaurState, power: number): Dinos
 export function pressJump(state: GameState) {
   state.jumpHeld = true
   if (state.paused || state.gameOver) return
+  // Jumping during the intro skips it: the run starts with this jump.
+  if (beforeRun(state)) state.introMs = INTRO_RUN_AT_MS
   state.jumpBufferMs = JUMP_BUFFER_MS
 
   const { jumpPower } = state.config
@@ -298,7 +399,7 @@ export function releaseJump(state: GameState) {
 
 /** Dash / esquiva: brief lunge with i-frames and a cooldown (Hollow Knight / Subway roll). */
 export function pressDash(state: GameState) {
-  if (state.paused || state.gameOver) return
+  if (state.paused || state.gameOver || beforeRun(state)) return
   if (state.dashCooldownMs > 0 || state.dashMs > 0) return
   state.dashMs = DASH_DURATION_MS
   state.dashCooldownMs = DASH_COOLDOWN_MS
@@ -335,8 +436,37 @@ function isHazard(obs: Obstacle) {
     obs.type !== 'floating-platform' &&
     obs.type !== 'train' &&
     obs.type !== 'building' &&
-    obs.type !== 'trampoline'
+    obs.type !== 'trampoline' &&
+    obs.type !== 'checkpoint' &&
+    obs.type !== 'wall'
   )
+}
+
+/** The intro's cop: runs in and shouts, then chases until left behind (or gives up). */
+function updateChaser(state: GameState, player: DinosaurState, scroll: number, deltaFactor: number) {
+  const chaser = state.chaser
+  if (!chaser || state.introMs < CHASER_ENTER_MS) return
+  const closest = player.x - CHASER_MIN_GAP
+  let x = chaser.x
+  let chaserState = chaser.state
+
+  if (beforeRun(state)) {
+    // Runs in and stops a little behind the player to shout.
+    const stop = player.x - CHASER_GAP
+    x = Math.min(stop, x + CHASER_SPEED * deltaFactor)
+    chaserState = x >= stop ? 'shout' : 'enter'
+  } else if (state.mode === 'runner') {
+    // Keeps up with most of the scroll, so the player slowly leaves the cop behind.
+    x += scroll * CHASER_KEEP_UP - scroll
+    chaserState = 'chase'
+  } else {
+    const chasing = state.introMs - INTRO_RUN_AT_MS < CHASER_FREE_CHASE_MS
+    x += (chasing ? CHASER_FREE_SPEED * deltaFactor : 0) - scroll
+    chaserState = chasing ? 'chase' : 'giveup'
+  }
+
+  x = Math.min(x, closest)
+  state.chaser = x < -160 ? null : { x, state: chaserState }
 }
 
 /** Advances the game by one frame. deltaMs is the real frame time (clamp it before calling). */
@@ -356,18 +486,21 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   state.jumpBoostMs = Math.max(0, state.jumpBoostMs - deltaMs)
   state.dashMs = Math.max(0, state.dashMs - deltaMs)
   state.dashCooldownMs = Math.max(0, state.dashCooldownMs - deltaMs)
+  state.phaseMs += deltaMs
+  const introWasRunning = beforeRun(state)
+  state.introMs += deltaMs
+  const inIntro = beforeRun(state)
 
-  // Phase progression (score-driven) lifts the speed ceiling each phase.
-  state.phase = getPhase(state.score)
+  // Each phase (opened by its checkpoint flag) lifts the speed ceiling.
   const phaseMaxSpeed = config.maxSpeed + RUNNER_TUNING.phaseSpeedBonus[state.phase - 1]
 
-  state.speed = Math.min(phaseMaxSpeed, state.speed + deltaMs * RUNNER_TUNING.accelerationPerMs)
+  if (!inIntro) state.speed = Math.min(phaseMaxSpeed, state.speed + deltaMs * RUNNER_TUNING.accelerationPerMs)
   const dashing = state.dashMs > 0
   const invincible = state.lightningMs > 0 || dashing
   const speedBoost = state.skateMs > 0 || state.lightningMs > 0 ? SKATE_SPEED_MULTIPLIER : 1
   const effectiveSpeed = state.speed * speedBoost
   state.effectiveSpeed = effectiveSpeed
-  const moveAxis = mode === 'free' ? Number(input.right) - Number(input.left) : 0
+  const moveAxis = mode === 'free' && !inIntro ? Number(input.right) - Number(input.left) : 0
 
   const previous = state.player
   let player = previous
@@ -426,9 +559,14 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     // Offset from the base lane (a dash lunge, or where a wall left the player) eases back.
     state.dashLunge *= DASH_LUNGE_DECAY
     if (Math.abs(state.dashLunge) < 0.6) state.dashLunge = 0
+    // After the intro the player eases back from where the tagging happened to the lane.
+    if (!inIntro && state.introOffset > 0) {
+      state.introOffset *= Math.pow(INTRO_OFFSET_DECAY, deltaFactor)
+      if (state.introOffset < 0.5) state.introOffset = 0
+    }
     // A gripped wall carries the player along as it scrolls, so there is time to wall-jump.
     const ridden = state.wallId === null ? undefined : state.obstacles.find((obs) => obs.id === state.wallId)
-    player = { ...player, x: ridden ? ridden.x - player.width + 2 : BASE_X + state.dashLunge }
+    player = { ...player, x: ridden ? ridden.x - player.width + 2 : BASE_X + state.dashLunge + state.introOffset }
   }
 
   let onPlatform = false
@@ -534,6 +672,13 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     player = { ...player, isDucking: wantsDuck, height, y: bottom - height }
   }
 
+  // The run starts: the player notices the cop and hops off (skipped if the player jumped).
+  if (introWasRunning && !inIntro && onGround && state.jumpBufferMs === 0) {
+    player = launchJump(state, player, config.jumpPower * INTRO_HOP_POWER)
+    state.jumpCutArmed = false
+    state.jumpsUsed = 1
+  }
+
   if (state.jumpBufferMs > 0 && state.coyoteMs > 0) {
     const jumpPowerMultiplier = state.jumpBoostMs > 0 ? JUMP_BOOST_MULTIPLIER : 1
     player = launchJump(state, player, config.jumpPower * jumpPowerMultiplier)
@@ -542,7 +687,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   // How far the world moves this frame: constant in the runner; in the free mode the
   // camera only follows once the player walks past the camera line.
-  let scroll = effectiveSpeed * deltaFactor
+  let scroll = effectiveSpeed * deltaFactor * introRamp(state)
   if (mode === 'free') {
     const cameraX = state.worldWidth * FREE_TUNING.cameraLine
     scroll = Math.max(0, player.x - cameraX)
@@ -565,13 +710,21 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   state.spawnDistance += scroll
   if (state.spawnDistance >= state.nextSpawnGap) {
+    const climbPhase = state.climbCooldown === 0 ? dueClimb(state) : null
     const shouldSpawnPath =
       state.score >= 500 &&
       state.random() < 0.18 &&
       !state.obstacles.some((obs) => obs.type === 'floating-platform' || obs.type === 'train')
 
     const gap = getSpawnGap(state, effectiveSpeed)
-    if (shouldSpawnPath) {
+    if (climbPhase) {
+      // Nothing else spawns until the climb has scrolled in and there was time to drop from it.
+      const climb = createClimb(state, climbPhase, mode === 'free' ? FREE_TUNING.walkSpeed : effectiveSpeed)
+      state.obstacles = [...state.obstacles, ...climb.obstacles]
+      const dropRoom = mode === 'runner' ? effectiveSpeed * CLIMB_DROP_FRAMES : 0
+      state.nextSpawnGap = climb.length + dropRoom + gap
+      state.climbCooldown = CLIMB_RETRY_SPAWNS
+    } else if (shouldSpawnPath) {
       // Nothing else spawns until the whole train line has scrolled in.
       const path = createFloatingPath(state)
       const pathLength = path
@@ -579,6 +732,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
         .reduce((length, train) => length + train.width, 0)
       state.obstacles = [...state.obstacles, ...path]
       state.nextSpawnGap = pathLength + gap
+      state.climbCooldown = Math.max(0, state.climbCooldown - 1)
     } else {
       const obstacle = createObstacle(state)
       if (mode === 'free' && obstacle.type === 'bird') {
@@ -589,14 +743,18 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
       }
       state.obstacles = [...state.obstacles, obstacle]
       state.nextSpawnGap = gap + spacingAfter(state, obstacle, effectiveSpeed)
+      state.climbCooldown = Math.max(0, state.climbCooldown - 1)
     }
     state.spawnDistance = 0
   }
 
+  updateChaser(state, player, scroll, deltaFactor)
+
   const birdDrift = mode === 'free' ? FREE_TUNING.birdDrift * deltaFactor : 0
   const beforeScroll = state.obstacles
-  // (typed with `as` so TS doesn't narrow it to null: it's assigned inside the callback)
+  // (typed with `as` so TS doesn't narrow them to null: they're assigned inside the callback)
   let encounteredArtist = null as GraffitiArtist | null
+  let reachedPhase = null as GamePhase | null
   state.obstacles = beforeScroll
     .map((obs) => ({
       ...obs,
@@ -618,6 +776,11 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
           encounteredArtist = obs.graffitiArtist
         }
         return []
+      }
+
+      if (obs.type === 'checkpoint' && !obs.reached && checkCollision(player, obs)) {
+        reachedPhase = obs.phase ?? null
+        return { ...obs, reached: true }
       }
 
       if (obs.type === 'power-lightning' && checkCollision(player, obs)) {
@@ -665,6 +828,8 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
           obs.type !== 'trampoline' &&
           obs.type !== 'floating-platform' &&
           obs.type !== 'train' &&
+          obs.type !== 'checkpoint' &&
+          obs.type !== 'wall' &&
           obs.type !== 'coin' &&
           obs.type !== 'power-lightning' &&
           obs.type !== 'power-jump'
@@ -675,6 +840,27 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
       }
       return obs
     })
+
+  if (reachedPhase !== null && reachedPhase > state.phase) {
+    state.phase = reachedPhase
+    state.phaseMs = 0
+    state.score += CHECKPOINT_BONUS
+    state.checkpoint = {
+      phase: reachedPhase,
+      score: state.score,
+      speed: state.speed,
+      coins: state.coins,
+      signatures: [...state.signatures],
+    }
+    events.push({ type: 'checkpoint', phase: reachedPhase })
+  }
+
+  // The camera follows the player up (quickly) and back down (a little slower), so the high
+  // platforms stay on screen without the view jumping around on normal jumps.
+  const cameraTarget = Math.max(0, state.worldHeight * CAMERA_TOP_MARGIN - player.y)
+  const follow = cameraTarget > state.cameraY ? CAMERA_FOLLOW_UP : CAMERA_FOLLOW_DOWN
+  state.cameraY += (cameraTarget - state.cameraY) * Math.min(1, follow * deltaFactor)
+  if (Math.abs(cameraTarget - state.cameraY) < 0.5) state.cameraY = cameraTarget
 
   if (encounteredArtist) {
     // Pause right here; the front end shows the dialog and calls resumeGame afterwards.
@@ -727,7 +913,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   if (hasCollision) {
     state.gameOver = true
-    events.push({ type: 'gameOver', score: state.score })
+    events.push({ type: 'gameOver', score: state.score, checkpoint: state.checkpoint })
   }
 
   return events
@@ -742,6 +928,11 @@ export function getView(state: GameState): GameView {
     totalCoins: state.totalCoins,
     signatures: state.signatures,
     phase: state.phase,
+    phaseMs: state.phaseMs,
+    cameraY: state.cameraY,
+    introStage: !beforeRun(state) ? null : state.introMs < INTRO_TAG_MS ? 'tag' : 'alert',
+    tagProgress: state.intro ? Math.min(1, state.introMs / INTRO_TAG_MS) : 1,
+    chaser: state.chaser,
     speed: state.effectiveSpeed,
     skateMs: state.skateMs,
     skateFlickering: state.skateFlickerMs > 0,
