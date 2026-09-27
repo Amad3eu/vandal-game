@@ -207,6 +207,8 @@ src/
 │   ├── engine.ts          # Estado da partida, passo por frame, ações e eventos
 │   ├── physics.ts         # Gravidade, colisões e paredes
 │   ├── spawn.ts           # Geração de obstáculos e da escada do checkpoint
+│   ├── replay.ts          # Replay e verificação de uma partida gravada
+│   ├── random.ts          # Números aleatórios com semente (mesma semente, mesmos obstáculos)
 │   └── config.ts          # Constantes do jogo (pulo, power-ups, fases...)
 ├── hooks/
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
@@ -264,15 +266,19 @@ A escada do checkpoint também fica em `src/game/config.ts`: `PHASE_2_SCORE`/`PH
 `src/game/engine.ts` não depende de React nem do navegador. O fluxo é:
 
 ```typescript
-const state = createGameState({ mode: 'runner', width, height })  // tamanho do mundo: fitWorld()
-// a cada frame:
-const events = stepGame(state, { left, right, down }, deltaMs)     // 'coin' | 'artist' | 'checkpoint' | 'gameOver'
-desenhar(getView(state))                                           // chão, obstáculos e jogador deslocados em view.cameraY
+const state = createGameState({ mode: 'runner', width, height, intro: true, record: true })  // tamanho do mundo: fitWorld()
+// a cada frame, com o tempo real desde o frame anterior:
+const events = advanceGame(state, { left, right, down }, elapsedMs)  // 'coin' | 'artist' | 'checkpoint' | 'gameOver'
+desenhar(getView(state))                                             // chão, obstáculos e jogador deslocados em view.cameraY
 // botões:
 pressJump(state) / releaseJump(state) / pressDash(state)
 // continuar do checkpoint (vem no evento gameOver):
 createGameState({ mode, width, height, checkpoint: evento.checkpoint })
 ```
+
+- **Passo fixo:** `advanceGame` simula sempre em ticks de 60 Hz (`TICK_MS`), seja a tela de 30, 60, 120 ou 144 Hz. O pulo e a velocidade saem iguais em qualquer aparelho. Com o tempo do frame como passo, telas de 120 Hz pulavam uns 2% mais alto.
+- **Replay:** com `record: true`, `state.log` guarda a semente dos sorteios e o que o jogador fez em cada tick (pulos, direções, dash, redimensionamentos, grafiteiros). `replayRun(log)` e `verifyRun(log)` (em `src/game/replay.ts`) jogam a partida de novo e conferem a pontuação. É a base para um servidor validar recordes sem confiar no cliente. A última partida fica salva em `dinoGameLastRun`.
+- **Versão das regras:** o `ENGINE_VERSION` (em `src/game/config.ts`) vai junto no log. Aumente o número quando uma mudança alterar como uma partida acontece, para replays antigos não serem comparados com regras novas.
 
 ### Visual (Vandal UI)
 
