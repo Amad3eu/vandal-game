@@ -94,32 +94,86 @@
   display: none;
 }
 
-.bg-ground {
-  height: 24%;
+/* Everything that sits on the floor. The camera moves it down (translateY) to follow the
+   player up to high platforms; the city background stays put. */
+.game-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.scene-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
   bottom: 0;
+  height: 24%;
   background: linear-gradient(180deg, #8f949e 0%, #676d78 42%, #474c56 100%);
   border-top: 6px solid #b6bcc6;
   box-shadow: inset 0 8px 0 rgba(255, 255, 255, 0.06);
 }
 
-.game-container.is-night .bg-ground {
+.game-container.is-night .scene-ground {
   background: linear-gradient(180deg, #5b6270 0%, #3f4653 42%, #2a303a 100%);
   border-top-color: #8f98aa;
 }
 
-.game-over-overlay {
+/* Grabbing a checkpoint flag: the new phase, for a moment, in the middle of the screen. */
+.phase-banner {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  left: 50%;
+  top: 22%;
+  z-index: 6;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
+  gap: 4px;
+  padding: 14px 28px;
+  border-radius: 16px;
+  background: rgba(31, 17, 71, 0.86);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: phaseBanner 2.6s ease-in-out forwards;
 }
+
+.phase-banner-kicker {
+  color: #ffd23f;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.phase-banner-title {
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  font-weight: 900;
+}
+
+.phase-banner-note {
+  color: #c7d2fe;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+@keyframes phaseBanner {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.92);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(1);
+  }
+}
+
 
 .dinosaur {
   z-index: 3;
@@ -240,123 +294,11 @@
   }
 }
 
-.game-over-message {
-  background: white;
-  padding: 40px;
-  border-radius: 15px;
-  text-align: center;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: slideInDown 0.5s ease-out;
-}
 
-@keyframes slideInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-50px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-.game-over-message h2 {
-  font-size: 2.5em;
-  color: #ff6b6b;
-  margin-bottom: 15px;
-}
 
-.game-over-message p {
-  font-size: 1.1em;
-  color: #666;
-}
 
-.game-container.is-night .game-over-message {
-  background: #0f1b32;
-}
 
-.game-container.is-night .game-over-message p {
-  color: #d2dcff;
-}
-
-.signature-choice-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
-}
-
-.signature-choice-container {
-  background: white;
-  border-radius: 16px;
-  padding: 40px;
-  max-width: 500px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: slideIn 0.3s ease;
-}
-
-.signature-choice-container h2 {
-  margin: 0 0 15px 0;
-  font-size: 24px;
-  font-weight: 800;
-  color: #333;
-}
-
-.signature-choice-container p {
-  margin: 0 0 30px 0;
-  font-size: 14px;
-  color: #666;
-  font-weight: 500;
-}
-
-.choice-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.btn-draw-signature,
-.btn-skip {
-  padding: 14px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.btn-draw-signature {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-draw-signature:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.btn-skip {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.btn-skip:hover {
-  background: #e0e0e0;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-}
 
 @keyframes fadeIn {
   from {
@@ -397,15 +339,6 @@
     font-size: 0.78rem;
   }
 
-  .game-over-message {
-    padding: 30px;
-  }
 
-  .game-over-message h2 {
-    font-size: 2em;
-  }
 
-  .game-over-message p {
-    font-size: 1em;
-  }
 }

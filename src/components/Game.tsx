@@ -3,13 +3,16 @@ import Dinosaur from './Dinosaur'
 import Obstacles from './Obstacle'
 import HUD from './HUD'
 import TouchControls from './TouchControls'
-import GraffitiDialog from './GraffitiDialog'
+import GraffitiDialog, { ArtistPortrait, artistStyle } from './GraffitiDialog'
 import DrawingCanvas from './DrawingCanvas'
 import DrawingConfirmation from './DrawingConfirmation'
+import Chaser, { CaughtScene } from './Chaser'
 import Blackbook from './Blackbook'
 import { useGameInput } from '../hooks/useGameInput'
 import { ARTIST_SIGNATURES } from '../data/artistSignatures'
 import { GAME_MODES, RUNNER_TUNING } from '../data/gameModes'
+import { PHASES } from '../data/phases'
+import { ARTIST_INFO } from '../data/graffitiArtists'
 import {
   awardSignature,
   createGameState,
@@ -23,15 +26,17 @@ import {
   stepGame,
   type GameState,
 } from '../game/engine'
-import { GameMode, GraffitiArtist, GraffitiArt } from '../types/game'
+import { Checkpoint, GameMode, GraffitiArtist, GraffitiArt } from '../types/game'
 import type { MusicOption } from '../App'
 import dayBackground from '../assets/background/9.png'
 import nightBackground from '../assets/background/7.png'
 import themeTrack from '../assets/soundtrack/SonoTWS - Tired Of People Act II - SonoTWS (youtube).mp3'
 import './Game.css'
 
-const BACKGROUND_TRANSITION_START = 900
-const BACKGROUND_TRANSITION_END = 1700
+/** How long the "new phase" banner stays up after grabbing a checkpoint flag. */
+const PHASE_BANNER_MS = 2600
+/** How long the cop's grab shows before the game over menu. */
+const CAUGHT_MS = 1300
 
 function readTotalCoins() {
   const saved = localStorage.getItem('dinoGameTotalCoins')
@@ -42,10 +47,12 @@ interface GameProps {
   mode: GameMode
   highScore: number
   selectedMusic: MusicOption
-  onGameOver: (score: number) => void
+  /** Continue from this checkpoint instead of starting from phase 1. */
+  checkpoint?: Checkpoint | null
+  onGameOver: (score: number, checkpoint: Checkpoint | null) => void
 }
 
-export default function Game({ mode, highScore, selectedMusic, onGameOver }: GameProps) {
+export default function Game({ mode, highScore, selectedMusic, checkpoint = null, onGameOver }: GameProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -53,13 +60,16 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
   // forwards input and renders the engine's state. It remounts for every run.
   const engineRef = useRef<GameState>()
   if (!engineRef.current) {
-    engineRef.current = createGameState({ mode, width: 1200, height: 700, totalCoins: readTotalCoins() })
+    // Opens with the tagging intro and the cop; continuing from a checkpoint drops the player in instead.
+    engineRef.current = createGameState({ mode, width: 1200, height: 700, totalCoins: readTotalCoins(), checkpoint, intro: true })
   }
   const engine = engineRef.current
 
   const [view, setView] = useState(() => getView(engine))
   const [worldScale, setWorldScale] = useState(1)
   const [gameActive, setGameActive] = useState(true)
+  // Game over: the cop grabs the player for a moment before the menu shows.
+  const [caught, setCaught] = useState(false)
 
   // Graffiti interaction states
   const [blackbook, setBlackbook] = useState<GraffitiArt[]>(() => {
@@ -187,7 +197,9 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
           return
         } else if (event.type === 'gameOver') {
           setGameActive(false)
-          onGameOver(event.score)
+          setCaught(true)
+          const { score, checkpoint: reached } = event
+          window.setTimeout(() => onGameOver(score, reached), CAUGHT_MS)
           return
         }
       }
@@ -232,15 +244,16 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
 
   const { player, phase, score, grindCombo, wallClingSide } = view
   const speedPercentage = (view.speed / RUNNER_TUNING.maxSpeed) * 100
-  const backgroundBlend = Math.min(
-    1,
-    Math.max(0, (score - BACKGROUND_TRANSITION_START) / (BACKGROUND_TRANSITION_END - BACKGROUND_TRANSITION_START))
-  )
+  // Night falls when the phase 2 checkpoint is grabbed (the layers fade with a CSS transition).
+  const backgroundBlend = phase >= 2 ? 1 : 0
   const isNight = phase >= 2
+  const showPhaseBanner = phase > 1 && view.phaseMs < PHASE_BANNER_MS
+  const continuedHere = checkpoint !== null && phase === checkpoint.phase
   const modeInfo = GAME_MODES[mode]
   // Gripping a wall turns the sprite away from it; otherwise it faces the walking direction.
   const visualFacing = wallClingSide !== 0 ? (-wallClingSide as 1 | -1) : player.facing ?? 1
-  const isMoving = mode === 'runner' || Math.abs(player.velocityX ?? 0) > 0.3
+  // Standing still while tagging the wall in the intro.
+  const isMoving = mode === 'runner' ? view.introStage === null : Math.abs(player.velocityX ?? 0) > 0.3
 
   return (
     <div className={`game-wrapper ${isNight ? 'is-night' : ''} phase-${phase}`}>
@@ -267,20 +280,39 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
               style={{ backgroundImage: `url(${nightBackground})`, opacity: `${backgroundBlend}` }}
             />
             <div className="bg-layer bg-clouds" />
-            <div className="bg-layer bg-ground" />
           </div>
 
-          <Dinosaur
-            state={player}
-            hasSkate={view.skateMs > 0}
-            skateFlickering={view.skateFlickering}
-            isDashing={view.dashing}
-            isWallClinging={wallClingSide !== 0}
-            facing={visualFacing}
-            isMoving={isMoving}
-          />
-          <Obstacles obstacles={view.obstacles} />
+          {/* Floor, obstacles and player move down together when the camera follows the player up. */}
+          <div className="game-scene" style={{ transform: `translateY(${view.cameraY}px)` }}>
+            <div className="scene-ground" />
+            {view.chaser && !caught && <Chaser chaser={view.chaser} groundLevel={engine.config.groundLevel} />}
+            {caught && <CaughtScene playerX={player.x} groundLevel={engine.config.groundLevel} />}
+            {view.introStage === 'tag' && <span className="spray-mist" style={{ left: player.x + 84, top: player.y + 34 }} />}
+            {view.introStage === 'alert' && <span className="alert-bubble" style={{ left: player.x + 40, top: player.y - 44 }}>!</span>}
+            <Dinosaur
+              state={player}
+              hasSkate={view.skateMs > 0}
+              skateFlickering={view.skateFlickering}
+              isDashing={view.dashing}
+              isWallClinging={wallClingSide !== 0}
+              facing={visualFacing}
+              isMoving={isMoving}
+            />
+            <Obstacles obstacles={view.obstacles} tagProgress={view.tagProgress} />
+          </div>
         </div>
+
+        {showPhaseBanner && (
+          <div className="phase-banner" key={phase} role="status">
+            <span className="phase-banner-kicker">🚩 Checkpoint!</span>
+            <strong className="phase-banner-title">
+              {PHASES[phase].emoji} Fase {phase} · {PHASES[phase].name}
+            </strong>
+            <span className="phase-banner-note">
+              {continuedHere ? 'Continuando do checkpoint' : '+250 pontos · checkpoint salvo'}
+            </span>
+          </div>
+        )}
 
         <TouchControls mode={mode} onPress={press} onRelease={release} />
 
@@ -332,24 +364,31 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
         )}
 
         {currentArtist && interactionStage === 'signature-choice' && (
-          <div className="signature-choice-overlay">
-            <div className="signature-choice-container">
-              <h2>Quer desenhar uma assinatura para {currentArtist}?</h2>
-              <p>Você já recebeu a assinatura do artista!</p>
-
-              <div className="choice-buttons">
-                <button
-                  className="btn-draw-signature"
-                  onClick={() => {
-                    setDrawingType('signature')
-                    setInteractionStage('drawing')
-                  }}
-                >
-                  📷 Desenhar Minha Assinatura
-                </button>
-                <button className="btn-skip" onClick={endEncounter}>
-                  Não, Obrigado
-                </button>
+          <div className="street-backdrop">
+            <div className="street-dialog paper-panel" style={artistStyle(currentArtist)} role="dialog" aria-labelledby="choice-title">
+              <div className="street-dialog-artist">
+                <ArtistPortrait artist={currentArtist} />
+                <span className="artist-tag-name">{ARTIST_INFO[currentArtist].name}</span>
+              </div>
+              <div className="street-dialog-body">
+                <p className="speech-bubble">Fechou! Minha assinatura já tá no seu blackbook. 🤝</p>
+                <h2 id="choice-title" className="dialog-ask">
+                  Quer deixar a sua assinatura para {ARTIST_INFO[currentArtist].name}?
+                </h2>
+                <div className="street-dialog-actions">
+                  <button
+                    className="sticker-btn is-pink"
+                    onClick={() => {
+                      setDrawingType('signature')
+                      setInteractionStage('drawing')
+                    }}
+                  >
+                    ✏️ Desenhar minha assinatura
+                  </button>
+                  <button className="sticker-btn is-ghost" onClick={endEncounter}>
+                    Agora não
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -380,14 +419,7 @@ export default function Game({ mode, highScore, selectedMusic, onGameOver }: Gam
           <Blackbook arts={blackbook} onClose={() => setShowBlackbook(false)} />
         )}
 
-        {!gameActive && interactionStage === 'none' && (
-          <div className="game-over-overlay">
-            <div className="game-over-message">
-              <h2>Fim de Jogo!</h2>
-              <p>Clique para voltar ao menu principal</p>
-            </div>
-          </div>
-        )}
+        {caught && <div className="caught-sticker">Pego!</div>}
       </div>
     </div>
   )
