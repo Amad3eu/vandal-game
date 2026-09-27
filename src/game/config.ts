@@ -21,6 +21,16 @@ export const BASE_CONFIG: Omit<GameConfig, 'groundLevel'> = {
 
 /** Physics runs in 60fps units; deltaMs / FRAME_TIME scales each step to the real frame time. */
 export const FRAME_TIME = 1000 / 60
+/**
+ * advanceGame simulates in fixed 60Hz ticks whatever the display's refresh rate, so a jump is
+ * the same on a 30, 60, 120 or 144Hz screen (with the frame time as the step, 120Hz players
+ * jumped ~2% higher) and a run can be replayed tick by tick.
+ */
+export const TICK_MS = FRAME_TIME
+/** After a hiccup (tab switch, slow phone) at most this much time is caught up at once. */
+export const MAX_CATCH_UP_MS = 100
+/** Rules version, saved in run logs: bump it when a change alters how a run plays out. */
+export const ENGINE_VERSION = 1
 /** The floor starts at 76% of the world height (matches the 24% ground strip of the web view). */
 export const GROUND_RATIO = 0.76
 

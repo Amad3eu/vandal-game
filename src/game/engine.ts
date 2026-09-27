@@ -34,6 +34,9 @@ import {
   CLIMB_RETRY_SPAWNS,
   COIN_SCORE,
   COYOTE_TIME_MS,
+  ENGINE_VERSION,
+  MAX_CATCH_UP_MS,
+  TICK_MS,
   DASH_COOLDOWN_MS,
   DASH_DURATION_MS,
   DASH_LUNGE,
@@ -75,7 +78,32 @@ import {
   WALL_JUMP_POWER_MULT,
 } from './config'
 import { approach, checkCollision, moveAgainstBuildings, updatePlayerPosition } from './physics'
+import { createRandom, newSeed } from './random'
 import { createClimb, createFloatingPath, createObstacle, getSpawnGap, spacingAfter } from './spawn'
+
+/** Something the player did at a tick, as saved in a run log. */
+export type RunEvent =
+  | { tick: number; type: 'held'; held: HeldInput }
+  | { tick: number; type: 'jump' | 'jumpEnd' | 'dash' | 'resume' }
+  | { tick: number; type: 'signature'; artist: GraffitiArtist }
+  | { tick: number; type: 'resize'; width: number; height: number }
+
+/**
+ * Everything needed to replay a run exactly (see replayRun): how it started and what the
+ * player did at which tick. endTick/score are filled in when the run ends.
+ */
+export interface RunLog {
+  version: number
+  mode: GameMode
+  width: number
+  height: number
+  seed: number
+  intro: boolean
+  checkpoint: Checkpoint | null
+  events: RunEvent[]
+  endTick?: number
+  score?: number
+}
 
 /** The cop from the intro: runs in, shouts, chases and falls behind (or gives up). */
 export interface Chaser {
@@ -146,6 +174,14 @@ export interface GameState {
   jumpTakeoffY: number
   jumpsUsed: number
 
+  /** Fixed 60Hz ticks simulated so far, and the time not simulated yet (see advanceGame). */
+  tick: number
+  accumulatorMs: number
+  /** Held directions as of the last tick, to log only the changes. */
+  held: HeldInput
+  /** The run being recorded (createGameState with record: true), or null. */
+  log: RunLog | null
+
   /** Paused by a graffiti encounter until resumeGame. */
   paused: boolean
   gameOver: boolean
@@ -197,6 +233,11 @@ interface CreateGameOptions {
   checkpoint?: Checkpoint | null
   /** Open with the tagging intro and the cop (ignored when continuing: the player drops in). */
   intro?: boolean
+  /** Seed for the obstacles; a recorded run always has one (a new one if not given). */
+  seed?: number
+  /** Keep a RunLog of the run in state.log, for replays and score checks. */
+  record?: boolean
+  /** Custom random source for tests (ignored when a seed is given or the run is recorded). */
   random?: () => number
 }
 
@@ -213,8 +254,12 @@ export function createGameState({
   totalCoins = 0,
   checkpoint = null,
   intro = false,
-  random = Math.random,
+  seed,
+  record = false,
+  random: customRandom,
 }: CreateGameOptions): GameState {
+  const runSeed = seed ?? (record ? newSeed() : undefined)
+  const random = runSeed !== undefined ? createRandom(runSeed) : customRandom ?? Math.random
   const config: GameConfig = { ...BASE_CONFIG, groundLevel: Math.round(height * GROUND_RATIO) }
   const withIntro = intro && !checkpoint
   // Continuing from a checkpoint the player drops in from above, already running.
@@ -275,6 +320,21 @@ export function createGameState({
     jumpCutArmed: false,
     jumpTakeoffY: 0,
     jumpsUsed: 0,
+    tick: 0,
+    accumulatorMs: 0,
+    held: { left: false, right: false, down: false },
+    log: record
+      ? {
+          version: ENGINE_VERSION,
+          mode,
+          width,
+          height,
+          seed: runSeed ?? 0,
+          intro: withIntro,
+          checkpoint,
+          events: [],
+        }
+      : null,
     paused: false,
     gameOver: false,
     artistEncounterId: null,
@@ -306,8 +366,15 @@ function introRamp(state: GameState) {
   return Math.min(1, Math.max(0, (state.introMs - INTRO_RUN_AT_MS) / INTRO_RAMP_MS))
 }
 
+function logEvent(state: GameState, event: RunEvent) {
+  state.log?.events.push(event)
+}
+
 /** Window resize or phone rotation: move the floor, keeping obstacles and the player on it. */
 export function resizeWorld(state: GameState, width: number, height: number) {
+  if (width !== state.worldWidth || height !== state.worldHeight) {
+    logEvent(state, { tick: state.tick, type: 'resize', width, height })
+  }
   state.worldWidth = width
   state.worldHeight = height
   const groundLevel = Math.round(height * GROUND_RATIO)
@@ -357,6 +424,7 @@ function launchJump(state: GameState, dino: DinosaurState, power: number): Dinos
 }
 
 export function pressJump(state: GameState) {
+  logEvent(state, { tick: state.tick, type: 'jump' })
   state.jumpHeld = true
   if (state.paused || state.gameOver) return
   // Jumping during the intro skips it: the run starts with this jump.
@@ -394,12 +462,14 @@ export function pressJump(state: GameState) {
 
 /** Variable jump height (Mario): stepGame clips the rise once the button is released. */
 export function releaseJump(state: GameState) {
+  logEvent(state, { tick: state.tick, type: 'jumpEnd' })
   state.jumpHeld = false
 }
 
 /** Dash / esquiva: brief lunge with i-frames and a cooldown (Hollow Knight / Subway roll). */
 export function pressDash(state: GameState) {
   if (state.paused || state.gameOver || beforeRun(state)) return
+  logEvent(state, { tick: state.tick, type: 'dash' })
   if (state.dashCooldownMs > 0 || state.dashMs > 0) return
   state.dashMs = DASH_DURATION_MS
   state.dashCooldownMs = DASH_COOLDOWN_MS
@@ -414,6 +484,7 @@ export function pressDash(state: GameState) {
 
 /** Ends the graffiti encounter pause. */
 export function resumeGame(state: GameState) {
+  logEvent(state, { tick: state.tick, type: 'resume' })
   state.paused = false
   state.artistEncounterId = null
 }
@@ -421,6 +492,7 @@ export function resumeGame(state: GameState) {
 /** Signing an artist's blackbook scores once per artist per run; returns whether it counted. */
 export function awardSignature(state: GameState, artist: GraffitiArtist) {
   if (state.signatures.includes(artist)) return false
+  logEvent(state, { tick: state.tick, type: 'signature', artist })
   state.score += GRAFFITI_SIGNATURE_SCORE
   state.signatures = [...state.signatures, artist]
   return true
@@ -469,7 +541,37 @@ function updateChaser(state: GameState, player: DinosaurState, scroll: number, d
   state.chaser = x < -160 ? null : { x, state: chaserState }
 }
 
-/** Advances the game by one frame. deltaMs is the real frame time (clamp it before calling). */
+/**
+ * Advances the game by the real time since the last frame, in fixed 60Hz ticks: 0, 1 or a few
+ * per frame depending on the display. Front ends call this once per animation frame.
+ */
+export function advanceGame(state: GameState, input: HeldInput, elapsedMs: number): GameEvent[] {
+  const events: GameEvent[] = []
+  if (state.paused || state.gameOver) return events
+  state.accumulatorMs += Math.min(MAX_CATCH_UP_MS, Math.max(0, elapsedMs))
+
+  while (state.accumulatorMs >= TICK_MS) {
+    if (input.left !== state.held.left || input.right !== state.held.right || input.down !== state.held.down) {
+      state.held = { ...input }
+      logEvent(state, { tick: state.tick, type: 'held', held: state.held })
+    }
+    state.accumulatorMs -= TICK_MS
+    events.push(...stepGame(state, input, TICK_MS))
+    state.tick += 1
+    if (state.paused || state.gameOver) break
+  }
+
+  if (state.gameOver && state.log) {
+    state.log.endTick = state.tick
+    state.log.score = state.score
+  }
+  return events
+}
+
+/**
+ * One step of the rules. advanceGame calls it with TICK_MS; tests may call it directly with
+ * any deltaMs (physics is written in 60fps units scaled by deltaMs).
+ */
 export function stepGame(state: GameState, input: HeldInput, deltaMs: number): GameEvent[] {
   const events: GameEvent[] = []
   if (state.paused || state.gameOver) return events
