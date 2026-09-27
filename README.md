@@ -126,13 +126,27 @@ Abra o app **Expo Go** no celular e escaneie o QR code (celular e computador na 
 - Os sprites do app são cópias ampliadas 4x (pixel art nítida) dos arquivos em `src/assets/sprites`. Depois de mexer neles, rode `npm run sprites` dentro de `mobile/` (precisa de Python 3 com Pillow).
 - `npm run typecheck` confere os tipos do app.
 
+#### Gerar um APK de teste (Android)
+
+O `mobile/eas.json` tem o perfil `preview`, que gera um `.apk` na nuvem da Expo (EAS Build). Precisa de uma conta gratuita em [expo.dev](https://expo.dev):
+
+```bash
+cd mobile
+npx eas-cli@latest login
+npx eas-cli@latest build -p android --profile preview
+```
+
+Na primeira vez ele pede para criar o projeto EAS e gerar a keystore (responda sim nos dois; o `projectId` que ele grava no `app.json` deve ir para o repositório). No fim aparece um link/QR code: abra no celular, baixe o `.apk` e instale (permitindo "instalar apps desconhecidos"). O pacote Android é `com.amad3eu.vandalgame`.
+
 Ainda não tem no app: o canvas para desenhar o graffiti e a tela do blackbook (as assinaturas aceitas já ficam salvas no aparelho). Os ícones e a splash ainda são os padrões do Expo.
 
 ## 🎮 Como Jogar
 
-No menu, escolha o **Modo de Jogo** e clique em "Iniciar Jogo". Cada modo guarda o seu próprio recorde.
+Na tela de título, escolha o **modo** e aperte **Jogar** (no teclado: `↑`/`↓` para escolher e `Enter` para confirmar). Cada modo guarda o seu próprio recorde.
 
 **Objetivo**: desvie dos obstáculos o máximo possível para ganhar pontos.
+
+**Abertura:** o personagem está pichando "VANDAL" num muro quando um policial aparece gritando "PARA AÍ!". Ele leva um susto, pula e a fuga começa. O policial corre atrás nos primeiros segundos até ficar para trás (no modo Livre, ele desiste). Pular durante a abertura pula direto para a corrida. Quando você bate, o policial chega correndo e te pega ("PEGO!") antes do menu. Continuando de um checkpoint, o personagem já chega caindo do alto, sem a abertura.
 
 ### 🏃 Corrida (estilo dino do Google)
 
@@ -158,6 +172,15 @@ Você controla a caminhada: o cenário só avança quando você anda.
 
 Na fase 3 (Telhados), encoste na parede de um prédio no ar e pule de novo para fazer o wall-jump.
 
+### 🚩 Fases e checkpoint
+
+As fases (1 Rua, 2 Metrô, 3 Telhados) não mudam mais só com os pontos. Com **1200 pontos** aparece uma escada de plataformas subindo até uma **bandeira de checkpoint**; com **3500 pontos** na fase 2 aparece a escada para os telhados, um degrau mais alta.
+
+- Pule de degrau em degrau (as plataformas deixam passar por baixo) e encoste na bandeira: abre a próxima fase, cai a noite e você ganha +250 pontos.
+- A câmera sobe junto com você nas plataformas altas.
+- Se errar a escada, nada acontece: ela volta depois de alguns obstáculos.
+- A bandeira salva o checkpoint: no Fim de Jogo aparece **Continuar da Fase N**, que começa de novo daquela fase com os pontos, as moedas e a velocidade de quando você pegou a bandeira.
+
 ### 📱 No celular
 
 Aparecem botões na tela: `◀` `▶` para andar (modo Livre), `▲` pular, `▼` abaixar e `⚡` dash. No modo Corrida, tocar em qualquer lugar da tela também pula. Em telas pequenas o cenário é reduzido para dar tempo de ver o que vem pela frente.
@@ -178,11 +201,12 @@ src/
 │   ├── HUD.tsx            # Placar e informações
 │   └── HUD.css
 ├── data/
-│   └── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
+│   ├── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
+│   └── phases.ts          # Nomes das fases e dica do checkpoint
 ├── game/                  # Regras do jogo, sem React nem DOM (reaproveitável no app Expo)
 │   ├── engine.ts          # Estado da partida, passo por frame, ações e eventos
 │   ├── physics.ts         # Gravidade, colisões e paredes
-│   ├── spawn.ts           # Geração de obstáculos
+│   ├── spawn.ts           # Geração de obstáculos e da escada do checkpoint
 │   └── config.ts          # Constantes do jogo (pulo, power-ups, fases...)
 ├── hooks/
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
@@ -193,8 +217,13 @@ src/
 ├── main.tsx               # Ponto de entrada
 └── index.css              # Estilos globais
 
+src/styles/ui.css          # Botões adesivo, painéis e fundo dos diálogos (visual "Vandal UI")
+src/components/TitleScene.tsx  # Cidade à noite com o personagem correndo, no fundo da tela de título
+src/components/Chaser.tsx      # O policial da abertura e a cena do "PEGO!"
+scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
+
 mobile/                    # App Expo (React Native) que reaproveita src/game e src/data
-├── App.tsx                # Menu, música e recordes
+├── App.tsx                # Menu, música, recordes e fontes
 ├── src/screens/           # Menu e tela do jogo
 ├── src/components/        # Cenário, personagem, obstáculos, HUD e botões de toque
 ├── src/input.ts           # Multi-toque e posição dos botões
@@ -228,6 +257,8 @@ Os números de cada modo ficam em `src/data/gameModes.ts`:
 
 O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/game/config.ts`, e as hitboxes em `src/game/physics.ts`.
 
+A escada do checkpoint também fica em `src/game/config.ts`: `PHASE_2_SCORE`/`PHASE_3_SCORE` (a partir de quantos pontos ela aparece), `CLIMB_STEPS` (degraus por fase), `CLIMB_STEP_RISE` (altura de cada degrau) e `CLIMB_STEP_FRAMES`/`CLIMB_GAP_FRAMES` (largura dos degraus e dos vãos em frames de corrida: ela acompanha a velocidade para o tempo de reação ser o mesmo). A câmera usa `CAMERA_TOP_MARGIN`.
+
 ### Usando a engine em outro front end (ex.: Expo)
 
 `src/game/engine.ts` não depende de React nem do navegador. O fluxo é:
@@ -235,18 +266,29 @@ O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/gam
 ```typescript
 const state = createGameState({ mode: 'runner', width, height })  // tamanho do mundo: fitWorld()
 // a cada frame:
-const events = stepGame(state, { left, right, down }, deltaMs)     // 'coin' | 'artist' | 'gameOver'
-desenhar(getView(state))
+const events = stepGame(state, { left, right, down }, deltaMs)     // 'coin' | 'artist' | 'checkpoint' | 'gameOver'
+desenhar(getView(state))                                           // chão, obstáculos e jogador deslocados em view.cameraY
 // botões:
 pressJump(state) / releaseJump(state) / pressDash(state)
+// continuar do checkpoint (vem no evento gameOver):
+createGameState({ mode, width, height, checkpoint: evento.checkpoint })
 ```
 
-### Cores e Temas
+### Visual (Vandal UI)
 
-Customizando as cores nos arquivos CSS:
-- Primary: `#667eea`
-- Secondary: `#764ba2`
-- Danger: `#ff6b6b`
+A tela de título, os diálogos dos grafiteiros e o blackbook seguem um visual de adesivo de rua sobre pixel art. As referências são Jet Set Radio e Bomb Rush Cyberfunk (tags, adesivos), Katana ZERO (cidade em pixel art à noite) e Tony Hawk's Pro Skater 1+2 (menus de adesivo).
+
+- Cores e fontes: variáveis em `:root` (`src/index.css`) no site e `UI`/`FONTS` em `mobile/src/theme.ts` no app.
+  - `--ink` `#140f1f` · `--paper` `#fff6e5` · `--spray-pink` `#ff4d9d` · `--spray-yellow` `#ffd23f` · `--spray-cyan` `#4ecdc4` · `--spray-green` `#34d399`
+- Fontes (Google Fonts, carregadas no `index.html`; no app via `@expo-google-fonts`):
+  - **Sedgwick Ave Display**: logo e nomes (letra de pichação);
+  - **Bungee**: botões e títulos (letreiro de rua);
+  - **Silkscreen**: rótulos pequenos em pixel.
+- Peças prontas: `.sticker-btn` (com `.is-pink`, `.is-yellow`, `.is-green`, `.is-cyan`, `.is-ghost` e `.is-small`), `.paper-panel`, `.tape` e `.street-backdrop`, em `src/styles/ui.css`.
+
+### Sprites do policial e do muro
+
+Os sprites do policial (`src/assets/sprites/cop/`) e do muro com a tag (`src/assets/sprites/intro/`) são provisórios. Eles são gerados por `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Para trocar pela arte final, basta desenhar por cima mantendo os nomes dos arquivos e rodar `npm run sprites` dentro de `mobile/`.
 
 ## 📊 Performance
 
