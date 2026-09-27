@@ -20,6 +20,10 @@ interface MenuProps {
   onStart: () => void
   /** Checkpoint reached in the run that just ended: offers to continue from it. */
   checkpoint?: Checkpoint | null
+  /** The second chance costs a rewarded ad. */
+  continueWithAd?: boolean
+  /** The rewarded ad is playing, or was closed before the end. */
+  adState?: 'idle' | 'playing' | 'skipped'
   onContinue?: () => void
   onReturnToMenu?: () => void
   blackbookCount?: number
@@ -58,6 +62,8 @@ export default function Menu({
   onMusicChange,
   onStart,
   checkpoint = null,
+  continueWithAd = false,
+  adState = 'idle',
   onContinue,
   onReturnToMenu,
   blackbookCount = 0,
@@ -126,12 +132,28 @@ export default function Menu({
 
         <nav className="title-menu" aria-label="Menu principal" onKeyDown={moveFocus}>
           {canContinue && checkpoint && (
-            <button ref={primaryRef} className="sticker-btn is-green menu-main btn-continue" onClick={onContinue}>
+            <button
+              ref={primaryRef}
+              className="sticker-btn is-green menu-main btn-continue"
+              onClick={onContinue}
+              disabled={adState === 'playing'}
+            >
               <span>
-                🚩 Continuar da fase {checkpoint.phase} · {PHASES[checkpoint.phase].name}
+                {continueWithAd ? '📺' : '🚩'} Continuar da fase {checkpoint.phase} · {PHASES[checkpoint.phase].name}
               </span>
-              <span className="btn-note">{checkpoint.score} pontos</span>
+              <span className="btn-note">
+                {adState === 'playing'
+                  ? 'carregando anúncio…'
+                  : continueWithAd
+                    ? `assista um anúncio · ${checkpoint.score} pontos`
+                    : `${checkpoint.score} pontos`}
+              </span>
             </button>
+          )}
+          {canContinue && adState === 'skipped' && (
+            <p className="continue-hint" role="status">
+              Assista o anúncio até o fim para ganhar a segunda chance.
+            </p>
           )}
           <button
             ref={canContinue ? undefined : primaryRef}
