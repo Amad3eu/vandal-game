@@ -4,6 +4,8 @@ import Menu from './components/Menu'
 import Blackbook from './components/Blackbook'
 import FeedbackWidget from './components/FeedbackWidget'
 import { GAME_MODES } from './data/gameModes'
+import { CONTINUES_PER_CHECKPOINT, checkpointKey } from './data/phases'
+import { getAdsProvider } from './ads/ads'
 import { Checkpoint, GameMode, GraffitiArt } from './types/game'
 import './App.css'
 
@@ -41,22 +43,44 @@ export default function App() {
   // current run started from.
   const [lastCheckpoint, setLastCheckpoint] = useState<Checkpoint | null>(null)
   const [runCheckpoint, setRunCheckpoint] = useState<Checkpoint | null>(null)
+  // Second chances already used from a flag (see CONTINUES_PER_CHECKPOINT).
+  const [continues, setContinues] = useState({ key: '', used: 0 })
+  // Rewarded ad for the second chance (nothing when no ads network is set up).
+  const ads = getAdsProvider()
+  const [adState, setAdState] = useState<'idle' | 'playing' | 'skipped'>('idle')
 
   const handleStartGame = () => {
     setScore(0)
     setRunCheckpoint(null)
     setLastCheckpoint(null)
+    setContinues({ key: '', used: 0 })
+    setAdState('idle')
     setGameState('playing')
   }
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    if (!lastCheckpoint || adState === 'playing') return
+    if (ads.rewardedEnabled) {
+      setAdState('playing')
+      const result = await ads.showRewarded('continue-checkpoint')
+      // Closed early: no second chance. No ad to show at all: it stays free.
+      if (result === 'skipped') {
+        setAdState('skipped')
+        return
+      }
+    }
+    setAdState('idle')
+    const key = checkpointKey(lastCheckpoint)
+    setContinues((current) => ({ key, used: current.key === key ? current.used + 1 : 1 }))
     setRunCheckpoint(lastCheckpoint)
     setGameState('playing')
   }
 
   const handleGameOver = (finalScore: number, checkpoint: Checkpoint | null) => {
     setScore(finalScore)
-    setLastCheckpoint(checkpoint)
+    const exhausted = checkpoint !== null && checkpointKey(checkpoint) === continues.key && continues.used >= CONTINUES_PER_CHECKPOINT
+    setLastCheckpoint(exhausted ? null : checkpoint)
+    setAdState('idle')
     setIsNewRecord(finalScore > highScore)
     if (finalScore > highScore) {
       setHighScores((prev) => ({ ...prev, [selectedMode]: finalScore }))
@@ -127,6 +151,8 @@ export default function App() {
           onMusicChange={handleMusicChange}
           onStart={handleStartGame}
           checkpoint={lastCheckpoint}
+          continueWithAd={ads.rewardedEnabled}
+          adState={adState}
           onContinue={handleContinue}
           onReturnToMenu={handleReturnToMenu}
           blackbookCount={blackbook.length}
