@@ -130,8 +130,10 @@
   align-items: center;
   gap: 4px;
   padding: 14px 28px;
+  border: 3px solid var(--ink);
   border-radius: 16px;
-  background: rgba(31, 17, 71, 0.86);
+  box-shadow: 6px 6px 0 #000;
+  background: rgba(31, 17, 71, 0.92);
   color: #fff;
   text-align: center;
   pointer-events: none;
@@ -140,16 +142,17 @@
 }
 
 .phase-banner-kicker {
-  color: #ffd23f;
+  color: var(--spray-yellow);
+  font-family: var(--font-pixel);
   font-size: 0.85rem;
-  font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .phase-banner-title {
+  font-family: var(--font-display);
   font-size: clamp(1.4rem, 4vw, 2.2rem);
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .phase-banner-note {
@@ -193,9 +196,11 @@
   width: max-content;
   max-width: min(860px, calc(100% - 200px)); /* clears the feedback button in the corner */
   padding: 12px 18px;
+  border: 3px solid var(--ink);
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.8);
-  color: #e2e8f0;
+  background: rgba(20, 15, 31, 0.88);
+  box-shadow: 4px 4px 0 #000;
+  color: #e9e2ff;
   font-size: 0.85rem;
   line-height: 1.4;
   pointer-events: none;
@@ -205,14 +210,17 @@
 .controls-hint-title {
   width: 100%;
   text-align: center;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--spray-yellow);
 }
 
 .controls-hint-item strong {
-  color: #fde68a;
-  margin-right: 4px;
+  margin-right: 6px;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--spray-yellow);
 }
 
 @keyframes controlsHintFade {
@@ -243,14 +251,13 @@
   align-items: baseline;
   gap: 8px;
   padding: 6px 16px 8px;
+  border: 3px solid var(--ink);
   border-radius: 12px;
-  background: rgba(31, 17, 71, 0.78);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  background: var(--night);
+  box-shadow: 4px 4px 0 #000;
   transform: rotate(-4deg);
-  font-style: italic;
-  font-weight: 900;
+  font-family: var(--font-display);
   text-transform: uppercase;
-  letter-spacing: 1px;
   pointer-events: none;
 }
 

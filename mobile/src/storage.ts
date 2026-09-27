@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { GAME_MODES, type GameMode, type GraffitiArt } from './shared'
+import { GAME_MODES, type GameMode, type GraffitiArt, type RunLog } from './shared'
 
 // Same keys as the web version's localStorage.
 const MODE_KEY = 'dinoGameMode'
 const MUSIC_KEY = 'dinoGameMusic'
 const TOTAL_COINS_KEY = 'dinoGameTotalCoins'
 const BLACKBOOK_KEY = 'dinoGameBlackbook'
+const LAST_RUN_KEY = 'dinoGameLastRun'
 
 export interface SavedProgress {
   mode: GameMode
@@ -44,6 +45,9 @@ export const saveMode = (mode: GameMode) => save(MODE_KEY, mode)
 export const saveMusic = (enabled: boolean) => save(MUSIC_KEY, enabled ? 'theme' : 'none')
 export const saveTotalCoins = (coins: number) => save(TOTAL_COINS_KEY, String(coins))
 export const saveHighScore = (mode: GameMode, score: number) => save(GAME_MODES[mode].highScoreKey, String(score))
+
+/** The last run's log (seed + inputs per tick), kept for replays and, later, score checks. */
+export const saveLastRun = (log: RunLog | null) => log && save(LAST_RUN_KEY, JSON.stringify(log))
 
 export async function addToBlackbook(art: GraffitiArt) {
   const saved = await AsyncStorage.getItem(BLACKBOOK_KEY).catch(() => null)

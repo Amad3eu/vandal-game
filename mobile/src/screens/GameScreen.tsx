@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ARTIST_SIGNATURES,
   PHASES,
+  advanceGame,
   createGameState,
   fitWorld,
   getView,
@@ -12,14 +13,13 @@ import {
   releaseJump,
   resizeWorld,
   resumeGame,
-  stepGame,
   type Checkpoint,
   type GameMode,
   type GameState,
   type GraffitiArtist,
 } from '../shared'
 import { createActionInput, createTouchTracker, layoutTouchButtons, type ActionInput } from '../input'
-import { addToBlackbook } from '../storage'
+import { addToBlackbook, saveLastRun } from '../storage'
 import { COLORS, FONTS, UI } from '../theme'
 import ArtistDialog from '../components/ArtistDialog'
 import Hud from '../components/Hud'
@@ -29,6 +29,8 @@ import World from '../components/World'
 interface GameScreenProps {
   mode: GameMode
   totalCoins: number
+  /** Record of this mode, shown in the HUD. */
+  highScore: number
   /** Continue from this checkpoint instead of starting from phase 1. */
   checkpoint: Checkpoint | null
   onCoinsChange: (totalCoins: number) => void
@@ -42,7 +44,7 @@ const PHASE_BANNER_MS = 2600
 const CAUGHT_MS = 1300
 const CAUGHT_RUN_MS = 550
 
-export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange, onGameOver, onExit }: GameScreenProps) {
+export default function GameScreen({ mode, totalCoins, highScore, checkpoint, onCoinsChange, onGameOver, onExit }: GameScreenProps) {
   const { width, height } = useWindowDimensions()
   const insets = useSafeAreaInsets()
   const world = fitWorld(width, height)
@@ -51,7 +53,15 @@ export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange
   const engineRef = useRef<GameState | null>(null)
   if (!engineRef.current) {
     // Opens with the tagging intro and the cop; continuing from a checkpoint drops the player in instead.
-    engineRef.current = createGameState({ mode, width: world.width, height: world.height, totalCoins, checkpoint, intro: true })
+    engineRef.current = createGameState({
+      mode,
+      width: world.width,
+      height: world.height,
+      totalCoins,
+      checkpoint,
+      intro: true,
+      record: true,
+    })
   }
   const engine = engineRef.current
 
@@ -104,11 +114,12 @@ export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange
 
     const gameLoop = (timestamp: number) => {
       if (!lastTime) lastTime = timestamp
-      const deltaMs = Math.min(32, timestamp - lastTime)
+      const elapsedMs = timestamp - lastTime
       lastTime = timestamp
-      clockRef.current += deltaMs
+      clockRef.current += Math.min(32, elapsedMs)
 
-      const events = stepGame(engine, input.held, deltaMs)
+      // Fixed 60Hz ticks inside: the same physics on any refresh rate.
+      const events = advanceGame(engine, input.held, elapsedMs)
       setFrame({ view: getView(engine), clock: clockRef.current })
 
       for (const event of events) {
@@ -120,6 +131,7 @@ export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange
           return
         } else if (event.type === 'gameOver') {
           input.releaseAll()
+          saveLastRun(engine.log)
           setCaught({ score: event.score, checkpoint: event.checkpoint })
           return
         }
@@ -211,7 +223,7 @@ export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange
           <View style={styles.pauseBar} />
           <View style={styles.pauseBar} />
         </Pressable>
-        <Hud view={view} mode={mode} />
+        <Hud view={view} mode={mode} highScore={highScore} />
       </View>
 
       {view.grindCombo > 1 && (
@@ -293,8 +305,10 @@ const styles = StyleSheet.create({
   pauseButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: UI.ink,
+    backgroundColor: UI.paper,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -303,8 +317,8 @@ const styles = StyleSheet.create({
   pauseBar: {
     width: 5,
     height: 16,
-    borderRadius: 2,
-    backgroundColor: '#fff',
+    borderRadius: 1,
+    backgroundColor: UI.ink,
   },
   grind: {
     position: 'absolute',
@@ -314,20 +328,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: 'rgba(31, 17, 71, 0.78)',
+    borderWidth: 3,
+    borderColor: UI.ink,
+    backgroundColor: UI.night,
     transform: [{ rotate: '-4deg' }],
   },
   grindLabel: {
-    color: '#ffd23f',
+    color: UI.yellow,
+    fontFamily: FONTS.display,
     fontSize: 14,
-    fontWeight: '900',
-    fontStyle: 'italic',
   },
   grindValue: {
-    color: '#ff4d9d',
+    color: UI.pink,
+    fontFamily: FONTS.display,
     fontSize: 26,
-    fontWeight: '900',
-    fontStyle: 'italic',
   },
   caughtRow: {
     position: 'absolute',
@@ -372,8 +386,8 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     color: '#fff',
+    fontFamily: FONTS.display,
     fontSize: 24,
-    fontWeight: '900',
   },
   bannerNote: {
     color: '#c7d2fe',
