@@ -14,6 +14,7 @@ import { GAME_MODES, RUNNER_TUNING } from '../data/gameModes'
 import { PHASES } from '../data/phases'
 import { ARTIST_INFO } from '../data/graffitiArtists'
 import {
+  advanceGame,
   awardSignature,
   createGameState,
   fitWorld,
@@ -23,7 +24,6 @@ import {
   releaseJump,
   resizeWorld,
   resumeGame,
-  stepGame,
   type GameState,
 } from '../game/engine'
 import { Checkpoint, GameMode, GraffitiArtist, GraffitiArt } from '../types/game'
@@ -37,6 +37,9 @@ import './Game.css'
 const PHASE_BANNER_MS = 2600
 /** How long the cop's grab shows before the game over menu. */
 const CAUGHT_MS = 1300
+
+/** The last run's log (seed + inputs per tick), kept for replays and, later, score checks. */
+const LAST_RUN_KEY = 'dinoGameLastRun'
 
 function readTotalCoins() {
   const saved = localStorage.getItem('dinoGameTotalCoins')
@@ -61,7 +64,15 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
   const engineRef = useRef<GameState>()
   if (!engineRef.current) {
     // Opens with the tagging intro and the cop; continuing from a checkpoint drops the player in instead.
-    engineRef.current = createGameState({ mode, width: 1200, height: 700, totalCoins: readTotalCoins(), checkpoint, intro: true })
+    engineRef.current = createGameState({
+      mode,
+      width: 1200,
+      height: 700,
+      totalCoins: readTotalCoins(),
+      checkpoint,
+      intro: true,
+      record: true,
+    })
   }
   const engine = engineRef.current
 
@@ -180,10 +191,11 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
 
     const gameLoop = (timestamp: number) => {
       if (!lastTime) lastTime = timestamp
-      const deltaMs = Math.min(32, timestamp - lastTime)
+      const elapsedMs = timestamp - lastTime
       lastTime = timestamp
 
-      const events = stepGame(engine, held.current, deltaMs)
+      // Fixed 60Hz ticks inside: the same physics on any refresh rate.
+      const events = advanceGame(engine, held.current, elapsedMs)
       setView(getView(engine))
 
       for (const event of events) {
@@ -198,6 +210,11 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
         } else if (event.type === 'gameOver') {
           setGameActive(false)
           setCaught(true)
+          try {
+            localStorage.setItem(LAST_RUN_KEY, JSON.stringify(engine.log))
+          } catch {
+            // Storage full or blocked: the replay is only a bonus.
+          }
           const { score, checkpoint: reached } = event
           window.setTimeout(() => onGameOver(score, reached), CAUGHT_MS)
           return

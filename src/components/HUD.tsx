@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react'
 import { GameMode, GraffitiArtist } from '../types/game'
-import { GAME_MODES } from '../data/gameModes'
+import { ARTIST_INFO } from '../data/graffitiArtists'
 import { PHASES } from '../data/phases'
 import './HUD.css'
 
@@ -22,14 +23,18 @@ interface HUDProps {
   grindCombo?: number
 }
 
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`
+
+/**
+ * In-run HUD as a strip of stickers (same look as the title screen): phase, points with the
+ * record, coins, speed and dash, plus power-up timers and signatures only while they matter.
+ */
 export default function HUD({
   mode = 'runner',
   score,
   coins,
-  totalCoins = 0,
   highScore,
   gameSpeed,
-  isNight = false,
   skateTimeLeftMs = 0,
   lightningTimeLeftMs = 0,
   jumpBoostTimeLeftMs = 0,
@@ -38,112 +43,85 @@ export default function HUD({
   onOpenBlackbook,
   phase = 1,
   dashCooldownMs = 0,
-  grindCombo = 0,
 }: HUDProps) {
   const dashReady = dashCooldownMs <= 0
-  const GRAFFITI_ARTISTS: Record<string, { name: string; color: string }> = {
-    remo: { name: 'Remo', color: '#FF6B6B' },
-    pixo: { name: 'Pixo', color: '#4ECDC4' },
-    nina: { name: 'Nina', color: '#FFE66D' },
-  }
+  const beatingRecord = highScore > 0 && score > highScore
+
   return (
-    <div className="hud">
-      <div className="hud-item hud-optional">
-        <span className="hud-label">Modo</span>
-        <span className="hud-tag mode-tag">
-          {GAME_MODES[mode].icon} {GAME_MODES[mode].title}
-        </span>
-      </div>
-      <div className="hud-item">
-        <span className="hud-label">Fase</span>
-        <span className={`hud-tag phase-tag phase-tag-${phase}`}>
+    <div className="hud" role="status" aria-label="Placar">
+      <div className={`hud-sticker hud-phase phase-${phase}`}>
+        <small>Fase</small>
+        <strong>
           {PHASES[phase].emoji} {phase} · {PHASES[phase].name}
-        </span>
+        </strong>
       </div>
-      <div className="hud-item">
-        <span className="hud-label">Pontos</span>
-        <span className="hud-value">{score}</span>
+
+      <div className={`hud-sticker hud-score ${beatingRecord ? 'is-record' : ''}`}>
+        <small>{beatingRecord ? 'Novo recorde!' : 'Pontos'}</small>
+        <strong>{score}</strong>
+        {!beatingRecord && highScore > 0 && <em>rec {highScore}</em>}
       </div>
-      <div className="hud-item hud-optional">
-        <span className="hud-label">Recorde</span>
-        <span className="hud-value">{highScore}</span>
+
+      <div className="hud-sticker hud-coins">
+        <small>Moedas</small>
+        <strong>{coins}</strong>
       </div>
-      <div className="hud-item">
-        <span className="hud-label">Moedas</span>
-        <span className="hud-value">{coins}</span>
-      </div>
-      <div className="hud-item hud-optional">
-        <span className="hud-label">Moedas Totais</span>
-        <span className="hud-value">{totalCoins}</span>
-      </div>
+
       {/* In the free mode the player sets the pace, so there is no scroll speed to show. */}
       {mode === 'runner' && (
-        <div className="hud-item">
-          <span className="hud-label">Velocidade</span>
-          <div className="speed-bar">
-            <div className="speed-fill" style={{ width: `${gameSpeed}%` }} />
-          </div>
+        <div className="hud-sticker hud-speed">
+          <small>Velocidade</small>
+          <span className="speed-bar">
+            <span className="speed-fill" style={{ width: `${Math.min(100, gameSpeed)}%` }} />
+          </span>
         </div>
       )}
-      <div className="hud-item hud-optional">
-        <span className="hud-label">Ambiente</span>
-        <span className={`hud-tag ${isNight ? 'night' : 'day'}`}>
-          {isNight ? 'Noite' : 'Dia'}
-        </span>
+
+      <div className={`hud-sticker hud-dash ${dashReady ? 'ready' : 'cooling'}`}>
+        <small>Dash</small>
+        <strong>{dashReady ? 'Pronto' : seconds(dashCooldownMs)}</strong>
       </div>
-      <div className="hud-item">
-        <span className="hud-label">Dash</span>
-        <span className={`hud-tag dash-tag ${dashReady ? 'ready' : 'cooling'}`}>
-          {dashReady ? 'Pronto' : `${(dashCooldownMs / 1000).toFixed(1)}s`}
-        </span>
-      </div>
-      {grindCombo > 1 && (
-        <div className="hud-item">
-          <span className="hud-label">Grind</span>
-          <span className="hud-tag grind-tag">x{grindCombo}</span>
-        </div>
-      )}
-      {skateTimeLeftMs > 0 && (
-        <div className="hud-item">
-          <span className="hud-label">Turbo Skate</span>
-          <span className="hud-tag turbo">{(skateTimeLeftMs / 1000).toFixed(1)}s</span>
-        </div>
-      )}
+
       {lightningTimeLeftMs > 0 && (
-        <div className="hud-item">
-          <span className="hud-label">Raio</span>
-          <span className="hud-tag lightning">{(lightningTimeLeftMs / 1000).toFixed(1)}s</span>
+        <div className="hud-sticker hud-power is-lightning">
+          <small>Raio</small>
+          <strong>{seconds(lightningTimeLeftMs)}</strong>
         </div>
       )}
       {jumpBoostTimeLeftMs > 0 && (
-        <div className="hud-item">
-          <span className="hud-label">Super Pulo</span>
-          <span className="hud-tag jump">{(jumpBoostTimeLeftMs / 1000).toFixed(1)}s</span>
+        <div className="hud-sticker hud-power is-jump">
+          <small>Super pulo</small>
+          <strong>{seconds(jumpBoostTimeLeftMs)}</strong>
         </div>
       )}
+      {skateTimeLeftMs > 0 && (
+        <div className="hud-sticker hud-power is-skate">
+          <small>Turbo skate</small>
+          <strong>{seconds(skateTimeLeftMs)}</strong>
+        </div>
+      )}
+
       {signatures.length > 0 && (
-        <div className="hud-item">
-          <span className="hud-label">Assinaturas</span>
-          <div className="signatures-container">
-            {['remo', 'pixo', 'nina'].map((artist) => (
-              <div
+        <div className="hud-sticker hud-signatures hud-optional" aria-label="Assinaturas desta corrida">
+          <small>Assinaturas</small>
+          <span className="signature-dots">
+            {(Object.keys(ARTIST_INFO) as GraffitiArtist[]).map((artist) => (
+              <span
                 key={artist}
-                className={`signature-badge ${signatures.includes(artist as any) ? 'collected' : ''}`}
-                style={{ borderColor: GRAFFITI_ARTISTS[artist].color }}
-              >
-                {GRAFFITI_ARTISTS[artist].name}
-              </div>
+                title={ARTIST_INFO[artist].name}
+                className={`signature-dot ${signatures.includes(artist) ? 'collected' : ''}`}
+                style={{ '--artist': ARTIST_INFO[artist].color } as CSSProperties}
+              />
             ))}
-          </div>
+          </span>
         </div>
       )}
-      {blackbookCount > 0 && (
-        <div className="hud-item">
-          <span className="hud-label">Blackbook</span>
-          <button className="btn-blackbook" onClick={onOpenBlackbook}>
-            📖 {blackbookCount} obra{blackbookCount !== 1 ? 's' : ''}
-          </button>
-        </div>
+
+      {blackbookCount > 0 && onOpenBlackbook && (
+        <button type="button" className="hud-sticker hud-blackbook" onClick={onOpenBlackbook} aria-label={`Abrir blackbook (${blackbookCount} obras)`}>
+          <small>Blackbook</small>
+          <strong>🎨 {blackbookCount}</strong>
+        </button>
       )}
     </div>
   )
