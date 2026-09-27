@@ -3,6 +3,7 @@ import { AppState, BackHandler, Pressable, StyleSheet, Text, View, useWindowDime
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ARTIST_SIGNATURES,
+  PHASES,
   createGameState,
   fitWorld,
   getView,
@@ -12,13 +13,14 @@ import {
   resizeWorld,
   resumeGame,
   stepGame,
+  type Checkpoint,
   type GameMode,
   type GameState,
   type GraffitiArtist,
 } from '../shared'
 import { createActionInput, createTouchTracker, layoutTouchButtons, type ActionInput } from '../input'
 import { addToBlackbook } from '../storage'
-import { COLORS } from '../theme'
+import { COLORS, FONTS, UI } from '../theme'
 import ArtistDialog from '../components/ArtistDialog'
 import Hud from '../components/Hud'
 import TouchButtons from '../components/TouchButtons'
@@ -27,12 +29,20 @@ import World from '../components/World'
 interface GameScreenProps {
   mode: GameMode
   totalCoins: number
+  /** Continue from this checkpoint instead of starting from phase 1. */
+  checkpoint: Checkpoint | null
   onCoinsChange: (totalCoins: number) => void
-  onGameOver: (score: number) => void
+  onGameOver: (score: number, checkpoint: Checkpoint | null) => void
   onExit: () => void
 }
 
-export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver, onExit }: GameScreenProps) {
+/** How long the "new phase" banner stays up after grabbing a checkpoint flag. */
+const PHASE_BANNER_MS = 2600
+/** Game over: how long the cop's grab shows before the menu, and how long the run-in takes. */
+const CAUGHT_MS = 1300
+const CAUGHT_RUN_MS = 550
+
+export default function GameScreen({ mode, totalCoins, checkpoint, onCoinsChange, onGameOver, onExit }: GameScreenProps) {
   const { width, height } = useWindowDimensions()
   const insets = useSafeAreaInsets()
   const world = fitWorld(width, height)
@@ -40,7 +50,8 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
   // The same engine as the web version; this screen only drives it and draws it.
   const engineRef = useRef<GameState | null>(null)
   if (!engineRef.current) {
-    engineRef.current = createGameState({ mode, width: world.width, height: world.height, totalCoins })
+    // Opens with the tagging intro and the cop; continuing from a checkpoint drops the player in instead.
+    engineRef.current = createGameState({ mode, width: world.width, height: world.height, totalCoins, checkpoint, intro: true })
   }
   const engine = engineRef.current
 
@@ -63,8 +74,13 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
   const [frame, setFrame] = useState(() => ({ view: getView(engine), clock: 0 }))
   const clockRef = useRef(0)
   const [paused, setPaused] = useState(false)
+  // Bottom of the pause button + HUD strip, so the grind badge goes under it (away from the player).
+  const [topBarBottom, setTopBarBottom] = useState(56)
   const [artist, setArtist] = useState<GraffitiArtist | null>(null)
-  const running = !paused && artist === null
+  // Game over: the cop grabs the player for a moment, then the menu shows.
+  const [caught, setCaught] = useState<{ score: number; checkpoint: Checkpoint | null } | null>(null)
+  const [caughtMs, setCaughtMs] = useState(0)
+  const running = !paused && artist === null && caught === null
 
   // Latest props/state for listeners that are subscribed once.
   const latest = useRef({ paused, onCoinsChange, onGameOver, onExit })
@@ -104,7 +120,7 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
           return
         } else if (event.type === 'gameOver') {
           input.releaseAll()
-          latest.current.onGameOver(event.score)
+          setCaught({ score: event.score, checkpoint: event.checkpoint })
           return
         }
       }
@@ -136,6 +152,23 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
     }
   }, [input])
 
+  useEffect(() => {
+    if (!caught) return
+    let frameId = 0
+    const start = Date.now()
+    const tick = () => {
+      const elapsed = Date.now() - start
+      setCaughtMs(elapsed)
+      if (elapsed >= CAUGHT_MS) {
+        latest.current.onGameOver(caught.score, caught.checkpoint)
+        return
+      }
+      frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameId)
+  }, [caught])
+
   const closeArtist = () => {
     resumeGame(engine)
     setArtist(null)
@@ -143,7 +176,14 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
 
   const { view, clock } = frame
   const facing = view.wallClingSide !== 0 ? (-view.wallClingSide as 1 | -1) : view.player.facing ?? 1
-  const moving = mode === 'runner' || Math.abs(view.player.velocityX ?? 0) > 0.3
+  // Standing still while tagging the wall in the intro.
+  const moving = mode === 'runner' ? view.introStage === null : Math.abs(view.player.velocityX ?? 0) > 0.3
+  // Checkpoint banner: fades in, stays, fades out (the web version animates it in CSS).
+  const bannerOpacity =
+    view.phase > 1 && view.phaseMs < PHASE_BANNER_MS
+      ? Math.min(1, view.phaseMs / 300, (PHASE_BANNER_MS - view.phaseMs) / 500)
+      : 0
+  const continuedHere = checkpoint !== null && view.phase === checkpoint.phase
 
   return (
     <View style={styles.screen}>
@@ -156,6 +196,7 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
         groundLevel={engine.config.groundLevel}
         facing={facing}
         moving={moving}
+        caughtProgress={caught ? Math.min(1, caughtMs / CAUGHT_RUN_MS) : null}
       />
 
       <View testID="touch-layer" style={StyleSheet.absoluteFill} {...trackerRef.current} />
@@ -163,6 +204,7 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
 
       <View
         pointerEvents="box-none"
+        onLayout={(event) => setTopBarBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}
         style={[styles.top, { paddingTop: Math.max(8, insets.top), paddingLeft: Math.max(8, insets.left), paddingRight: Math.max(8, insets.right) }]}
       >
         <Pressable testID="pause" accessibilityLabel="Pausar" onPress={pause} style={styles.pauseButton}>
@@ -173,9 +215,29 @@ export default function GameScreen({ mode, totalCoins, onCoinsChange, onGameOver
       </View>
 
       {view.grindCombo > 1 && (
-        <View pointerEvents="none" style={[styles.grind, { top: Math.max(8, insets.top) + 56, left: Math.max(8, insets.left) + 8 }]}>
+        <View pointerEvents="none" style={[styles.grind, { top: topBarBottom + 10, right: Math.max(8, insets.right) + 8 }]}>
           <Text style={styles.grindLabel}>GRIND</Text>
           <Text style={styles.grindValue}>x{view.grindCombo}</Text>
+        </View>
+      )}
+
+      {bannerOpacity > 0 && (
+        <View testID="phase-banner" pointerEvents="none" style={[styles.bannerRow, { opacity: bannerOpacity }]}>
+          <View style={styles.banner}>
+            <Text style={styles.bannerKicker}>🚩 CHECKPOINT!</Text>
+            <Text style={styles.bannerTitle}>
+              {PHASES[view.phase].emoji} Fase {view.phase} · {PHASES[view.phase].name}
+            </Text>
+            <Text style={styles.bannerNote}>
+              {continuedHere ? 'Continuando do checkpoint' : '+250 pontos · checkpoint salvo'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {caught && caughtMs > CAUGHT_RUN_MS - 100 && (
+        <View pointerEvents="none" style={styles.caughtRow}>
+          <Text testID="caught" style={styles.caughtSticker}>PEGO!</Text>
         </View>
       )}
 
@@ -266,6 +328,57 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '900',
     fontStyle: 'italic',
+  },
+  caughtRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '30%',
+    alignItems: 'center',
+  },
+  caughtSticker: {
+    paddingHorizontal: 26,
+    paddingVertical: 8,
+    borderWidth: 4,
+    borderColor: '#140f1f',
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: UI.pink,
+    color: '#fff',
+    fontFamily: FONTS.display,
+    fontSize: 44,
+    transform: [{ rotate: '-6deg' }],
+  },
+  bannerRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '24%',
+    alignItems: 'center',
+  },
+  banner: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    backgroundColor: 'rgba(31, 17, 71, 0.86)',
+  },
+  bannerKicker: {
+    color: '#ffd23f',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  bannerTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  bannerNote: {
+    color: '#c7d2fe',
+    fontSize: 13,
+    fontWeight: '600',
   },
   overlay: {
     position: 'absolute',

@@ -7,9 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amad3eu.vandalgame"
     },
     "android": {
+      "package": "com.amad3eu.vandalgame",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -23,7 +25,8 @@
     },
     "plugins": [
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ],
     "backgroundColor": "#87ceeb"
   }
