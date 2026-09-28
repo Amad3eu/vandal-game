@@ -1,14 +1,13 @@
 .app {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 0;
 }
 
 /* On touch screens the feedback button would sit on the jump button during a run. */
-@media (hover: none) and (pointer: coarse) {
-  .app.is-playing .feedback-widget {
-    display: none;
-  }
+.touch-ui .app.is-playing .feedback-widget {
+  display: none;
 }

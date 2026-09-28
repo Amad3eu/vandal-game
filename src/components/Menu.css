@@ -667,15 +667,13 @@
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
-  .controls-list li.only-touch {
-    display: flex;
-  }
+.touch-ui .controls-list li.only-touch {
+  display: flex;
+}
 
-  .controls-list li.only-keyboard,
-  .title-hints {
-    display: none;
-  }
+.touch-ui .controls-list li.only-keyboard,
+.touch-ui .title-hints {
+  display: none;
 }
 
 /* ---- phones and narrow windows ---- */

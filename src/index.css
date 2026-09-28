@@ -41,19 +41,18 @@ body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
-/* Show either the keyboard or the touch version of instructions. */
+/* Show either the keyboard or the touch version of instructions (touch-ui: see src/touchUi.ts). */
 .only-touch {
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
-  .only-touch {
-    display: revert;
-  }
+.touch-ui .only-touch {
+  display: revert;
+}
 
-  .only-keyboard {
-    display: none;
-  }
+.touch-ui .only-keyboard {
+  display: none;
 }

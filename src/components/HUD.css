@@ -9,7 +9,8 @@
   justify-content: flex-end;
   align-items: stretch;
   gap: 10px;
-  max-width: min(760px, calc(100% - 28px));
+  /* leaves the top-left corner to the route map (104px wide, see RouteMap.css) */
+  max-width: min(760px, calc(100% - 146px));
   pointer-events: none;
 }
 
@@ -164,6 +165,7 @@
     gap: 6px;
     top: max(10px, env(safe-area-inset-top));
     right: max(10px, env(safe-area-inset-right));
+    max-width: calc(100% - 104px); /* the route map is 70px wide here */
   }
 
   .hud-sticker {
