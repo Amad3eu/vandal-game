@@ -11,18 +11,23 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "build:server-engine": "esbuild src/game/server.ts --bundle --format=esm --platform=neutral --outfile=supabase/functions/_shared/vandal-engine.js"
+    "build:server-engine": "esbuild src/game/server.ts --bundle --format=esm --platform=neutral --outfile=supabase/functions/_shared/vandal-engine.js",
+    "build:leaderboard": "tsc --noEmit -p server/leaderboard && esbuild server/leaderboard/index.ts --bundle --platform=node --format=esm --packages=external --outfile=server/leaderboard/dist/index.mjs",
+    "start:leaderboard": "node server/leaderboard/dist/index.mjs"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.117.2",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
+    "pg": "^8.23.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^20.10.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@typescript-eslint/eslint-plugin": "^6.16.0",

@@ -1073,11 +1073,70 @@ function verifyRun(log) {
   const state = replayRun(log);
   return { valid: state.gameOver && state.tick === log.endTick && state.score === log.score, score: state.score, tick: state.tick };
 }
+
+// src/game/submission.ts
+var LIMITS = {
+  /** Longest run accepted (the replay has to fit in the function's CPU time). */
+  maxRunMinutes: 30,
+  maxEvents: 1e5,
+  /** A seed must be used within this time. */
+  seedTtlMinutes: 180,
+  /** Network and clock slack when comparing the run's length with the time since the seed. */
+  slackMs: 2e4,
+  maxWorld: 4e3
+};
+var EVENT_TYPES = /* @__PURE__ */ new Set(["held", "jump", "jumpEnd", "dash", "resume", "signature", "resize"]);
+var ARTISTS = /* @__PURE__ */ new Set(["remo", "pixo", "nina"]);
+var isInt = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+var isWorldSize = (width, height) => typeof width === "number" && typeof height === "number" && width >= MIN_WORLD_WIDTH - 1 && height >= MIN_WORLD_HEIGHT - 1 && width <= LIMITS.maxWorld && height <= LIMITS.maxWorld;
+function isRunLog(value) {
+  if (!value || typeof value !== "object") return false;
+  const log = value;
+  if (!isInt(log.version, 1) || !isInt(log.seed, 0, 4294967295)) return false;
+  if (log.mode !== "runner" && log.mode !== "free") return false;
+  if (typeof log.intro !== "boolean" || !isWorldSize(log.width, log.height)) return false;
+  if (!isInt(log.endTick, 1) || !isInt(log.score)) return false;
+  if (!Array.isArray(log.events) || log.events.length > LIMITS.maxEvents) return false;
+  let lastTick = 0;
+  for (const event of log.events) {
+    if (!event || typeof event !== "object" || !EVENT_TYPES.has(event.type)) return false;
+    if (!isInt(event.tick) || event.tick < lastTick || event.tick > log.endTick) return false;
+    lastTick = event.tick;
+    if (event.type === "held") {
+      const held = event.held;
+      if (!held || typeof held.left !== "boolean" || typeof held.right !== "boolean" || typeof held.down !== "boolean") return false;
+    }
+    if (event.type === "signature" && !ARTISTS.has(event.artist)) return false;
+    if (event.type === "resize" && !isWorldSize(event.width, event.height)) return false;
+  }
+  return true;
+}
+function checkSubmission(log, seed, userId, now = Date.now()) {
+  const fail = (reason) => ({ ok: false, reason });
+  if (!seed) return fail("seed-unknown");
+  if (seed.user_id !== userId) return fail("seed-not-yours");
+  if (seed.used_at) return fail("seed-used");
+  const issuedAt = Date.parse(seed.issued_at);
+  if (!(now - issuedAt <= LIMITS.seedTtlMinutes * 6e4)) return fail("seed-expired");
+  if (!isRunLog(log)) return fail("bad-log");
+  if (log.version !== ENGINE_VERSION) return fail("old-version");
+  if (log.seed !== seed.seed || log.mode !== seed.mode) return fail("seed-mismatch");
+  if (log.checkpoint) return fail("continued-run");
+  const endTick = log.endTick;
+  if (endTick > LIMITS.maxRunMinutes * 6e4 / TICK_MS) return fail("too-long");
+  if (endTick * TICK_MS > now - issuedAt + LIMITS.slackMs) return fail("too-fast");
+  const replay = verifyRun(log);
+  if (!replay.valid) return fail("replay-mismatch");
+  return { ok: true, score: replay.score, endTick: replay.tick };
+}
 export {
   ENGINE_VERSION,
+  LIMITS,
   MIN_WORLD_HEIGHT,
   MIN_WORLD_WIDTH,
   TICK_MS,
+  checkSubmission,
+  isRunLog,
   replayRun,
   verifyRun
 };

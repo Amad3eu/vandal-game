@@ -232,6 +232,7 @@ src/
 │   ├── spawn.ts           # Geração de obstáculos e da escada do checkpoint
 │   ├── replay.ts          # Replay e verificação de uma partida gravada
 │   ├── random.ts          # Números aleatórios com semente (mesma semente, mesmos obstáculos)
+│   ├── submission.ts      # Conferência das partidas do placar global (usada pelo servidor)
 │   └── config.ts          # Constantes do jogo (pulo, power-ups, fases...)
 ├── hooks/
 │   └── useGameInput.ts    # Tratamento de input (teclado, mouse, touch)
@@ -248,8 +249,9 @@ src/components/Chaser.tsx      # O policial da abertura e a cena do "PEGO!"
 src/components/RouteMap.tsx    # Mapinha da rota no canto da tela
 src/components/SlamEffect.tsx  # Fogo, skate voando e adesivo "SLAM!"
 src/ads/                       # Anúncios: interface AdsProvider, anúncio de teste e AdSense H5
-src/online/                    # Placar global: Supabase ou placar falso (?online=dev); desligado sem chaves
+src/online/                    # Placar global: servidor próprio, Supabase ou placar falso (?online=dev); desligado sem configuração
 src/data/scoreBoard.ts         # Placar deste aparelho (melhores partidas por modo)
+server/leaderboard/            # Servidor do placar global (Node + Postgres), feito para o Railway (railway.json)
 supabase/migrations/           # Banco do placar: tabelas, RLS e funções SQL
 supabase/functions/            # start-run (semente) e submit-run (replay e placar), em Deno
 scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
@@ -340,21 +342,50 @@ Para o AdSense: `VITE_ADS=adsense`, `VITE_ADSENSE_CLIENT=ca-pub-...` e, para ver
 
 **Neste aparelho (já funciona, sem servidor):** as 10 melhores partidas de cada modo ficam guardadas no próprio aparelho (`localStorage` no site, `AsyncStorage` no app), com a fase alcançada, a data e a marca "continuou" quando a partida veio de um checkpoint. O Fim de Jogo mostra a posição, por exemplo "#2 neste aparelho". A lógica fica em `src/data/scoreBoard.ts` e é a mesma no site e no app.
 
-**Global (próxima etapa, guardada):** um placar único para todos, num servidor. Uma versão com Supabase já está pronta no código e fica **desligada** até receber as chaves (abaixo). Se o servidor for outro, como Node + Postgres no Railway, a parte que não muda é a conferência da partida (`supabase/functions/_shared/submission.ts`, que é TypeScript puro) e a engine que refaz a partida. Quando ele está ligado, o painel "🏆 Placar" ganha a aba "Global".
+**Global:** um placar único para todos, num servidor. Há duas versões prontas, as duas **desligadas** até você configurar uma: o servidor próprio em `server/leaderboard` (Node + Postgres, feito para o Railway) e uma com Supabase. As duas usam a mesma conferência de partidas (`src/game/submission.ts`). Com uma delas ligada, o painel "🏆 Placar" ganha a aba "🌎 Global", com apelido.
 
-#### Placar global com Supabase
+#### Como o servidor confere as partidas
 
 O placar só aceita pontuação que o servidor confirmou jogando a partida de novo:
 
-1. Ao apertar **Jogar**, o jogo pede ao servidor a semente da partida (função `start-run`). Assim ninguém escolhe uma semente "boa" testando offline.
-2. No fim, o jogo envia a gravação: semente e comandos por tick (função `submit-run`).
-3. O servidor refaz a partida com a mesma engine (`src/game`, empacotada em `supabase/functions/_shared/vandal-engine.js`) e grava a pontuação do replay, não a que o aparelho mandou.
+1. Ao apertar **Jogar**, o jogo pede ao servidor a semente da partida. Assim ninguém escolhe uma semente "boa" testando offline.
+2. No fim, o jogo envia a gravação: a semente e os comandos de cada tick.
+3. O servidor refaz a partida com a mesma engine (`src/game`). Se o resultado não bater com o que o jogo mandou, a partida é recusada. A pontuação que vale é a do replay.
 4. Cada semente vale uma vez. A partida não pode ter durado mais que o tempo desde que a semente saiu, e partidas continuadas do checkpoint não entram no placar (v1).
-5. As tabelas têm RLS: o jogo lê o placar e edita o próprio apelido, mas não grava partidas; só as funções do servidor gravam (`supabase/migrations/`).
+5. Os jogadores são anônimos: cada aparelho ganha uma conta na primeira partida ranqueada e pode escolher um apelido. Partidas sem pontos são conferidas, mas não aparecem na lista.
 
-Sem configuração o jogo fica offline, como antes. Para ver o fluxo sem servidor, abra com `?online=dev`: é um placar falso, guardado no navegador, que também confere o replay.
+Sem configuração o jogo fica offline, como antes. Se o servidor cair, o jogo começa a partida offline depois de no máximo 2,5 s. Para ver o fluxo sem servidor, abra com `?online=dev`: é um placar falso, guardado no navegador, que também confere o replay.
 
-Para ligar de verdade:
+#### Placar global no Railway
+
+O servidor (`server/leaderboard/`) é um Node com Express e Postgres. O `railway.json` na raiz já diz ao Railway como montar (`npm run build:leaderboard`), como ligar (`npm run start:leaderboard`) e onde ele responde que está no ar (`/health`). As tabelas são criadas sozinhas na primeira vez.
+
+1. Em [railway.com](https://railway.com): **New Project → Deploy from GitHub repo** e escolha este repositório.
+2. No mesmo projeto: **+ New → Database → PostgreSQL**.
+3. No serviço do jogo, em **Variables**, coloque o banco e o endereço do site (mais de um: separe por vírgula):
+
+   ```bash
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   ALLOWED_ORIGINS=https://vandal-game-guimeujovem.vercel.app
+   ```
+
+4. Em **Settings → Networking → Generate Domain**, gere o endereço público. Abra `https://<endereço>/health` para conferir: deve aparecer `{"ok":true,...}`.
+5. Na Vercel, em **Settings → Environment Variables** do site, coloque `VITE_LEADERBOARD_URL=https://<endereço do Railway>` e faça um novo deploy.
+
+Limites contra abuso: 40 partidas ranqueadas por jogador a cada 10 minutos e 60 contas novas por endereço IP por hora (`PLAYERS_PER_HOUR`; operadoras de celular põem muitos aparelhos atrás do mesmo IP). O Railway cobra pelo uso depois do período de teste; confira os planos no site deles.
+
+Para rodar no seu computador, com um Postgres local:
+
+```bash
+npm run build:leaderboard
+DATABASE_URL=postgres://usuario:senha@localhost:5432/vandal npm run start:leaderboard   # responde em http://localhost:8788
+```
+
+E no `.env.local` do site: `VITE_LEADERBOARD_URL=http://localhost:8788`.
+
+#### Placar global com Supabase
+
+A mesma ideia com as funções `start-run` e `submit-run` (Deno) e tabelas com RLS: o jogo lê o placar e edita o próprio apelido, mas não grava partidas; só as funções do servidor gravam (`supabase/migrations/`). A engine e a conferência vão empacotadas em `supabase/functions/_shared/vandal-engine.js`.
 
 1. Crie um projeto em [supabase.com](https://supabase.com) e ative **Anonymous sign-ins** em Authentication → Sign In / Providers. Os jogadores entram sem cadastro e escolhem um apelido. Vale ativar também um CAPTCHA contra abuso.
 2. No terminal, na raiz do projeto:
@@ -375,7 +406,9 @@ Para ligar de verdade:
    VITE_SUPABASE_ANON_KEY=<anon public key>
    ```
 
-Sempre que mudar as regras do jogo, faça três coisas: aumente o `ENGINE_VERSION`, rode `npm run build:server-engine` e publique as funções de novo. Assim o servidor confere as partidas com as mesmas regras do jogo.
+Se as duas estiverem configuradas, o site usa o servidor próprio (`VITE_LEADERBOARD_URL`).
+
+Sempre que mudar as regras do jogo, aumente o `ENGINE_VERSION`, para o servidor não comparar partidas com regras diferentes. No Railway, o deploy seguinte já leva as regras novas. No Supabase, rode `npm run build:server-engine` e publique as funções de novo.
 
 ### Sprites do policial, do muro e do fogo
 
