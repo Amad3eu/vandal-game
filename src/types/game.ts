@@ -43,6 +43,8 @@ export interface Obstacle {
   phase?: GamePhase
   /** Checkpoint flag already grabbed (it stays up, raised). */
   reached?: boolean
+  /** Knocked away by a skate SLAM: no longer hurts or holds anything, flies off. */
+  knocked?: boolean
   passed: boolean
 }
 

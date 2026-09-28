@@ -70,7 +70,10 @@ import {
   PHASE_3_SCORE,
   ROOF_STEP_TOLERANCE,
   SKATE_DURATION_MS,
-  SKATE_FLICKER_MS,
+  RECOVER_MS,
+  SLAM_MS,
+  SLAM_SLOWDOWN,
+  METERS_PER_PX,
   SKATE_SPEED_MULTIPLIER,
   TRAMPOLINE_BOOST,
   WALL_CLING_MAX_MS,
@@ -155,7 +158,11 @@ export interface GameState {
   jumpBufferMs: number
   coyoteMs: number
   skateMs: number
-  skateFlickerMs: number
+  /** Skate SLAM in progress (down on the ground), then blinking while getting back in. */
+  slamMs: number
+  recoverMs: number
+  /** How far the world has moved, in game pixels (for the route map). */
+  distance: number
   lightningMs: number
   jumpBoostMs: number
   dashMs: number
@@ -192,7 +199,8 @@ export type GameEvent =
   | { type: 'coin' }
   | { type: 'artist'; artist: GraffitiArtist }
   | { type: 'checkpoint'; phase: GamePhase }
-  | { type: 'gameOver'; score: number; checkpoint: Checkpoint | null }
+  | { type: 'slam' }
+  | { type: 'gameOver'; score: number; checkpoint: Checkpoint | null; phase: GamePhase; coins: number; distance: number }
 
 /** What a front end needs to draw a frame. */
 export interface GameView {
@@ -213,7 +221,12 @@ export interface GameView {
   chaser: Chaser | null
   speed: number
   skateMs: number
-  skateFlickering: boolean
+  /** 0 → 1 while down after a skate SLAM, null otherwise. */
+  slamProgress: number | null
+  /** Blinking after a SLAM: can't be hurt. */
+  recovering: boolean
+  /** Distance run, in meters. */
+  distance: number
   lightningMs: number
   jumpBoostMs: number
   dashing: boolean
@@ -303,7 +316,9 @@ export function createGameState({
     jumpBufferMs: 0,
     coyoteMs: 0,
     skateMs: 0,
-    skateFlickerMs: 0,
+    slamMs: 0,
+    recoverMs: 0,
+    distance: 0,
     lightningMs: 0,
     jumpBoostMs: 0,
     dashMs: 0,
@@ -426,7 +441,7 @@ function launchJump(state: GameState, dino: DinosaurState, power: number): Dinos
 export function pressJump(state: GameState) {
   logEvent(state, { tick: state.tick, type: 'jump' })
   state.jumpHeld = true
-  if (state.paused || state.gameOver) return
+  if (state.paused || state.gameOver || state.slamMs > 0) return
   // Jumping during the intro skips it: the run starts with this jump.
   if (beforeRun(state)) state.introMs = INTRO_RUN_AT_MS
   state.jumpBufferMs = JUMP_BUFFER_MS
@@ -468,7 +483,7 @@ export function releaseJump(state: GameState) {
 
 /** Dash / esquiva: brief lunge with i-frames and a cooldown (Hollow Knight / Subway roll). */
 export function pressDash(state: GameState) {
-  if (state.paused || state.gameOver || beforeRun(state)) return
+  if (state.paused || state.gameOver || beforeRun(state) || state.slamMs > 0) return
   logEvent(state, { tick: state.tick, type: 'dash' })
   if (state.dashCooldownMs > 0 || state.dashMs > 0) return
   state.dashMs = DASH_DURATION_MS
@@ -501,6 +516,7 @@ export function awardSignature(state: GameState, artist: GraffitiArtist) {
 // Things you can touch without dying (pickups, platforms, buildings are handled separately).
 function isHazard(obs: Obstacle) {
   return (
+    !obs.knocked &&
     obs.type !== 'skate' &&
     obs.type !== 'coin' &&
     obs.type !== 'power-lightning' &&
@@ -583,7 +599,16 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   state.jumpBufferMs = Math.max(0, state.jumpBufferMs - deltaMs)
   state.coyoteMs = Math.max(0, state.coyoteMs - deltaMs)
   state.skateMs = Math.max(0, state.skateMs - deltaMs)
-  state.skateFlickerMs = Math.max(0, state.skateFlickerMs - deltaMs)
+  if (state.slamMs > 0) {
+    state.slamMs = Math.max(0, state.slamMs - deltaMs)
+    if (state.slamMs === 0) {
+      // Back on the feet: a moment of blinking, and the knocked obstacles are gone.
+      state.recoverMs = RECOVER_MS
+      state.obstacles = state.obstacles.filter((obs) => !obs.knocked)
+    }
+  } else {
+    state.recoverMs = Math.max(0, state.recoverMs - deltaMs)
+  }
   state.lightningMs = Math.max(0, state.lightningMs - deltaMs)
   state.jumpBoostMs = Math.max(0, state.jumpBoostMs - deltaMs)
   state.dashMs = Math.max(0, state.dashMs - deltaMs)
@@ -598,11 +623,12 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   if (!inIntro) state.speed = Math.min(phaseMaxSpeed, state.speed + deltaMs * RUNNER_TUNING.accelerationPerMs)
   const dashing = state.dashMs > 0
-  const invincible = state.lightningMs > 0 || dashing
+  const slamming = state.slamMs > 0
+  const invincible = state.lightningMs > 0 || dashing || slamming || state.recoverMs > 0
   const speedBoost = state.skateMs > 0 || state.lightningMs > 0 ? SKATE_SPEED_MULTIPLIER : 1
   const effectiveSpeed = state.speed * speedBoost
   state.effectiveSpeed = effectiveSpeed
-  const moveAxis = mode === 'free' && !inIntro ? Number(input.right) - Number(input.left) : 0
+  const moveAxis = mode === 'free' && !inIntro && !slamming ? Number(input.right) - Number(input.left) : 0
 
   const previous = state.player
   let player = previous
@@ -673,7 +699,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   let onPlatform = false
   for (const platform of state.obstacles) {
-    if (platform.type !== 'floating-platform' && platform.type !== 'train' && platform.type !== 'building') {
+    if (platform.knocked || (platform.type !== 'floating-platform' && platform.type !== 'train' && platform.type !== 'building')) {
       continue
     }
 
@@ -715,7 +741,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     }
   } else if (!onPlatform && !dashing) {
     for (const wall of state.obstacles) {
-      if (wall.type !== 'building') continue
+      if (wall.type !== 'building' || wall.knocked) continue
       const dinoRight = player.x + player.width
       const dinoBottom = player.y + player.height
       const dinoTop = player.y
@@ -789,7 +815,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
   // How far the world moves this frame: constant in the runner; in the free mode the
   // camera only follows once the player walks past the camera line.
-  let scroll = effectiveSpeed * deltaFactor * introRamp(state)
+  let scroll = effectiveSpeed * deltaFactor * introRamp(state) * (slamming ? SLAM_SLOWDOWN : 1)
   if (mode === 'free') {
     const cameraX = state.worldWidth * FREE_TUNING.cameraLine
     scroll = Math.max(0, player.x - cameraX)
@@ -810,6 +836,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     if (onGround) state.grindCombo = 0
   }
 
+  state.distance += scroll
   state.spawnDistance += scroll
   if (state.spawnDistance >= state.nextSpawnGap) {
     const climbPhase = state.climbCooldown === 0 ? dueClimb(state) : null
@@ -926,6 +953,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
 
       if (!obs.passed && obs.x + obs.width < player.x) {
         if (
+          !obs.knocked &&
           obs.type !== 'skate' &&
           obs.type !== 'trampoline' &&
           obs.type !== 'floating-platform' &&
@@ -975,47 +1003,54 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   // A building only kills when the player is embedded in its wall (rammed at
   // ground level), never when landing on the roof or gripping the face. In the free
   // mode buildings are solid walls instead, so they never kill.
-  const buildingEmbedded =
-    mode === 'runner' &&
-    state.obstacles.some((obs) => {
-      if (obs.type !== 'building') return false
-      const dLeft = player.x + 6
-      const dRight = player.x + player.width - 6
-      const dBottom = player.y + player.height
-      const coreLeft = obs.x + 10
-      const coreRight = obs.x + obs.width - 6
-      return dRight > coreLeft && dLeft < coreRight && dBottom > obs.y + 44
-    })
+  const embedded = (obs: Obstacle) => {
+    if (mode !== 'runner' || obs.type !== 'building' || obs.knocked) return false
+    const dLeft = player.x + 6
+    const dRight = player.x + player.width - 6
+    const dBottom = player.y + player.height
+    return dRight > obs.x + 10 && dLeft < obs.x + obs.width - 6 && dBottom > obs.y + 44
+  }
+  const hits = invincible
+    ? []
+    : state.obstacles.filter((obs) => embedded(obs) || (isHazard(obs) && checkCollision(player, obs)))
 
-  let skateShieldHit = false
-  if (state.skateMs > 0 && !dashing) {
-    skateShieldHit =
-      buildingEmbedded || state.obstacles.some((obs) => isHazard(obs) && checkCollision(player, obs))
-
-    if (skateShieldHit) {
-      state.skateMs = 0
-      state.skateFlickerMs = SKATE_FLICKER_MS
-      player = {
-        ...player,
-        y: config.groundLevel - config.playerSize,
-        velocityY: 0,
-        isJumping: false,
-        isDucking: false,
-        height: config.playerSize,
-      }
+  // With a skate the crash is a SLAM: the obstacles hit fly away, the player goes down for a
+  // moment, gets up and blinks back in (RECOVER_MS). Without one, the run is over.
+  let slammed = false
+  if (hits.length > 0 && state.skateMs > 0) {
+    slammed = true
+    const knocked = new Set(hits.map((obs) => obs.id))
+    state.obstacles = state.obstacles.map((obs) => (knocked.has(obs.id) ? { ...obs, knocked: true } : obs))
+    state.skateMs = 0
+    state.slamMs = SLAM_MS
+    state.jumpBufferMs = 0
+    player = {
+      ...player,
+      y: config.groundLevel - config.playerSize,
+      velocityY: 0,
+      velocityX: 0,
+      isJumping: false,
+      isDucking: false,
+      isDashing: false,
+      height: config.playerSize,
     }
+    events.push({ type: 'slam' })
   }
 
   state.player = player
 
-  const hasCollision =
-    !skateShieldHit &&
-    !invincible &&
-    (buildingEmbedded || state.obstacles.some((obs) => isHazard(obs) && checkCollision(player, obs)))
+  const hasCollision = hits.length > 0 && !slammed
 
   if (hasCollision) {
     state.gameOver = true
-    events.push({ type: 'gameOver', score: state.score, checkpoint: state.checkpoint })
+    events.push({
+      type: 'gameOver',
+      score: state.score,
+      checkpoint: state.checkpoint,
+      phase: state.phase,
+      coins: state.coins,
+      distance: Math.round(state.distance * METERS_PER_PX),
+    })
   }
 
   return events
@@ -1037,7 +1072,9 @@ export function getView(state: GameState): GameView {
     chaser: state.chaser,
     speed: state.effectiveSpeed,
     skateMs: state.skateMs,
-    skateFlickering: state.skateFlickerMs > 0,
+    slamProgress: state.slamMs > 0 ? 1 - state.slamMs / SLAM_MS : null,
+    recovering: state.recoverMs > 0,
+    distance: Math.round(state.distance * METERS_PER_PX),
     lightningMs: state.lightningMs,
     jumpBoostMs: state.jumpBoostMs,
     dashing: state.dashMs > 0,

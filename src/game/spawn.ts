@@ -16,6 +16,8 @@ import {
   CLIMB_TOP_FRAMES,
   FRAME_TIME,
   POWERUP_SIZE,
+  SKATE_SPAWN_CHANCE,
+  SKATE_SPAWN_SCORE,
   TRAIN_PLATFORM_HEIGHT,
   TRAIN_PLATFORM_WIDTH,
   TRAMPOLINE_EXTRA_AIRTIME_FRAMES,
@@ -190,6 +192,21 @@ export function createObstacle(state: GameState): Obstacle {
       height: 80,
       type: 'graffiti-artist',
       graffitiArtist: artist,
+      passed: false,
+    }
+  }
+
+  // Skate (rare): saves the run from one crash. Never while one is active or already coming.
+  const canSpawnSkate =
+    state.score >= SKATE_SPAWN_SCORE && state.skateMs <= 0 && !state.obstacles.some((obs) => obs.type === 'skate')
+  if (canSpawnSkate && random() < SKATE_SPAWN_CHANCE) {
+    return {
+      id: state.nextObstacleId++,
+      x,
+      y: groundLevel - 38,
+      width: 64,
+      height: 30,
+      type: 'skate',
       passed: false,
     }
   }
