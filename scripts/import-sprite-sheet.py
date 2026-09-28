@@ -6,11 +6,15 @@ and saves them with the names the game uses.
     python3 scripts/import-sprite-sheet.py policial.png
     python3 scripts/import-sprite-sheet.py policial.png --frames 6 --names cop-run-1,cop-run-2,cop-run-3,cop-run-4,cop-shout,cop-catch --out src/assets/sprites/cop
 
-The sheet should have the frames side by side, in one row, left to right, on a flat background
-(or transparent). After importing, run `npm run sprites` inside mobile/ to update the app.
-Needs Pillow (pip install pillow).
+The sheet should have the characters side by side, left to right, on a flat background (or
+transparent). They don't need to be evenly spaced: each one is found by its connected pixels
+(small loose bits, like shout lines, join the nearest character). All frames share one scale
+and one palette, so the animation doesn't pulse or flicker. After importing, run
+`npm run sprites` inside mobile/ to update the app. Needs Pillow (pip install pillow).
 """
 import argparse
+from array import array
+from collections import deque
 from pathlib import Path
 
 from PIL import Image
@@ -55,32 +59,108 @@ def remove_background(image: Image.Image, tolerance: int) -> Image.Image:
     return image
 
 
-def to_frame(cell: Image.Image, colors: int) -> Image.Image:
-    box = cell.getbbox()
-    frame = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    if not box:
-        return frame
-    art = cell.crop(box)
-    scale = CHARACTER_HEIGHT / art.height
-    width = max(1, round(art.width * scale))
-    if width > SIZE - 2:  # very wide poses (arms out) still fit the frame
-        scale = (SIZE - 2) / art.width
-        width = SIZE - 2
-    height = max(1, round(art.height * scale))
-    # Area-average the big drawing down (premultiplied, so transparent pixels don't darken the
-    # edges), then snap alpha and colors back to hard pixels.
-    small = art.convert("RGBa").resize((width, height), Image.BOX).convert("RGBA")
-    alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
-    # The palette comes from the drawing only: transparent pixels are filled with its main color.
-    opaque = [c[:3] for c, a in zip(small.getdata(), alpha.getdata()) if a]
+def find_characters(image: Image.Image, frames: int):
+    """Splits the drawing into `frames` characters, left to right. Connected pixels form pieces;
+    the `frames` biggest pieces are the characters and every smaller piece joins the nearest one.
+    Returns one RGBA crop per character, holding only that character's pixels."""
+    w, h = image.size
+    alpha = image.getchannel("A").tobytes()
+    labels = array("i", [0]) * (w * h)
+    pieces = []  # [size, left, top, right, bottom]
+    for start in range(w * h):
+        if alpha[start] < 128 or labels[start]:
+            continue
+        label = len(pieces) + 1
+        labels[start] = label
+        queue = deque([start])
+        size, left, top, right, bottom = 0, w, h, 0, 0
+        while queue:
+            i = queue.popleft()
+            x, y = i % w, i // w
+            size += 1
+            left, right, top, bottom = min(left, x), max(right, x), min(top, y), max(bottom, y)
+            for dy in (-1, 0, 1):
+                ny = y + dy
+                if ny < 0 or ny >= h:
+                    continue
+                for dx in (-1, 0, 1):
+                    nx = x + dx
+                    if 0 <= nx < w:
+                        j = ny * w + nx
+                        if alpha[j] >= 128 and not labels[j]:
+                            labels[j] = label
+                            queue.append(j)
+        pieces.append([size, left, top, right, bottom])
+    if len(pieces) < frames:
+        raise SystemExit(f"Encontrei {len(pieces)} personagens, mas eram esperados {frames}.")
+
+    by_size = sorted(range(len(pieces)), key=lambda k: -pieces[k][0])
+    main = sorted(by_size[:frames], key=lambda k: pieces[k][1])  # left to right
+    typical = sorted(pieces[k][0] for k in main)[frames // 2]
+    if min(pieces[k][0] for k in main) < typical * 0.25:
+        print("Aviso: um dos personagens parece partido em pedaços; confira os quadros gerados.")
+
+    def gap(a, b):
+        _, al, at, ar, ab = pieces[a]
+        _, bl, bt, br, bb = pieces[b]
+        return max(0, bl - ar, al - br) + max(0, bt - ab, at - bb)
+
+    owner = {k + 1: k for k in main}
+    for k in by_size[frames:]:
+        owner[k + 1] = min(main, key=lambda m: gap(k, m))
+
+    crops = []
+    src = image.load()
+    for m in main:
+        members = [label for label, o in owner.items() if o == m]
+        left = min(pieces[l - 1][1] for l in members)
+        top = min(pieces[l - 1][2] for l in members)
+        right = max(pieces[l - 1][3] for l in members)
+        bottom = max(pieces[l - 1][4] for l in members)
+        crop = Image.new("RGBA", (right - left + 1, bottom - top + 1), (0, 0, 0, 0))
+        dst = crop.load()
+        keep = set(members)
+        for y in range(top, bottom + 1):
+            row = y * w
+            for x in range(left, right + 1):
+                if labels[row + x] in keep:
+                    dst[x - left, y - top] = src[x, y]
+        crops.append(crop)
+    return crops
+
+
+def to_frames(crops, colors: int):
+    """Shrinks every character with the same scale (the tallest one fits the player's height,
+    the widest one fits the frame), feet on the same line, one palette for all frames."""
+    scale = min(CHARACTER_HEIGHT / max(c.height for c in crops), (SIZE - 2) / max(c.width for c in crops))
+    smalls = []
+    for crop in crops:
+        size = (max(1, round(crop.width * scale)), max(1, round(crop.height * scale)))
+        # Premultiplied area average, so transparent pixels don't darken the edges.
+        small = crop.convert("RGBa").resize(size, Image.BOX).convert("RGBA")
+        alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+        smalls.append((small, alpha))
+
+    # One palette from the drawings only (transparent pixels filled with the main color).
+    opaque = [c[:3] for small, alpha in smalls for c, a in zip(small.getdata(), alpha.getdata()) if a]
     fill = max(set(opaque), key=opaque.count) if opaque else (0, 0, 0)
-    rgb = Image.new("RGB", small.size, fill)
-    rgb.paste(small.convert("RGB"), mask=alpha)
-    rgb = rgb.quantize(colors=colors, method=0).convert("RGB")  # 0 = median cut (old and new Pillow)
-    small = rgb.convert("RGBA")
-    small.putalpha(alpha)
-    frame.alpha_composite(small, ((SIZE - width) // 2, FEET_Y + 1 - height))
-    return frame
+    strip = Image.new("RGB", (sum(s.width for s, _ in smalls), max(s.height for s, _ in smalls)), fill)
+    x = 0
+    for small, alpha in smalls:
+        strip.paste(small.convert("RGB"), (x, 0), alpha)
+        x += small.width
+    palette = strip.quantize(colors=colors, method=0)  # 0 = median cut (old and new Pillow)
+
+    frames = []
+    for small, alpha in smalls:
+        rgb = Image.new("RGB", small.size, fill)
+        rgb.paste(small.convert("RGB"), mask=alpha)
+        art = rgb.quantize(palette=palette).convert("RGBA")
+        art.putalpha(alpha)
+        frame = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+        frame.alpha_composite(art, ((SIZE - art.width) // 2, FEET_Y + 1 - art.height))
+        frames.append(frame)
+    return frames
 
 
 def main():
@@ -89,7 +169,7 @@ def main():
     parser.add_argument("--frames", type=int, default=6, help="frames side by side in the sheet (default 6)")
     parser.add_argument("--names", default=DEFAULT_NAMES, help="file names for the frames, left to right")
     parser.add_argument("--out", type=Path, default=ROOT / "src/assets/sprites/cop")
-    parser.add_argument("--colors", type=int, default=16, help="palette size per frame (default 16)")
+    parser.add_argument("--colors", type=int, default=24, help="palette size for all frames (default 24)")
     parser.add_argument("--tolerance", type=int, default=40, help="how close to the background color gets removed")
     args = parser.parse_args()
 
@@ -98,11 +178,10 @@ def main():
         parser.error(f"{args.frames} frames but {len(names)} names")
 
     sheet = remove_background(Image.open(args.sheet), args.tolerance)
-    cell_width = sheet.width / args.frames
+    frames = to_frames(find_characters(sheet, args.frames), args.colors)
     args.out.mkdir(parents=True, exist_ok=True)
-    for i, name in enumerate(names):
-        cell = sheet.crop((round(i * cell_width), 0, round((i + 1) * cell_width), sheet.height))
-        to_frame(cell, args.colors).save(args.out / f"{name}.png")
+    for name, frame in zip(names, frames):
+        frame.save(args.out / f"{name}.png")
         print(f"{args.out / name}.png")
     print("Pronto. Rode `npm run sprites` dentro de mobile/ para atualizar o app.")
 
