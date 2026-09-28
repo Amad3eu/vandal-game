@@ -41,6 +41,37 @@ create table if not exists runs (
 );
 create index if not exists runs_mode_score on runs (mode, score desc);
 create index if not exists runs_player_mode on runs (player_id, mode, score desc);
+
+-- Moderation: a hidden player can still play, but stays off the board.
+alter table players add column if not exists hidden boolean not null default false;
+
+-- Real graffiti artists, DJs, MCs and b-boys/b-girls the game can show by score and phase
+-- (edited in the admin page, /admin). The signature is a small image as a data URL.
+create table if not exists artists (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 2 and 40),
+  kind text not null check (kind in ('graffiti', 'dj', 'mc', 'breaking')),
+  city text check (city is null or char_length(city) <= 40),
+  bio text check (bio is null or char_length(bio) <= 280),
+  instagram text check (instagram is null or instagram ~ '^[A-Za-z0-9._]{1,30}$'),
+  color text not null default '#ff4d9d' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  signature text check (signature is null or char_length(signature) <= 400000),
+  min_score int not null default 0 check (min_score >= 0),
+  phase int not null default 1 check (phase between 1 and 3),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- What each admin did, for everyone on the team to see.
+create table if not exists admin_log (
+  id bigserial primary key,
+  admin text not null,
+  action text not null,
+  target text,
+  details jsonb,
+  created_at timestamptz not null default now()
+);
 `
 
 export interface Player {
@@ -125,12 +156,13 @@ export function createStore(pool: Pool) {
       }
     },
 
-    /** Best verified score per player in a mode, best first (runs with no points stay off the board). */
+    /** Best verified score per player in a mode, best first (runs with no points and hidden players stay off the board). */
     async leaderboard(mode: string, limit: number): Promise<LeaderboardEntry[]> {
       const { rows } = await pool.query(
         `with best as (
            select distinct on (r.player_id) r.player_id, r.score, r.created_at
            from runs r
+           join players hp on hp.id = r.player_id and not hp.hidden
            where r.mode = $1 and r.score > 0
            order by r.player_id, r.score desc, r.created_at
          )
@@ -144,10 +176,16 @@ export function createStore(pool: Pool) {
       return rows.map((row) => ({ rank: row.rank, playerId: row.player_id, nickname: row.nickname, score: row.score }))
     },
 
-    /** A player's best score in a mode and their place (null until they score points). */
+    /** A player's best score in a mode and their place (null until they score points, or while hidden). */
     async standing(mode: string, playerId: string): Promise<{ rank: number; best: number } | null> {
       const { rows } = await pool.query(
-        `with best as (select player_id, max(score) as score from runs where mode = $1 and score > 0 group by player_id)
+        `with best as (
+           select r.player_id, max(r.score) as score
+           from runs r
+           join players p on p.id = r.player_id and not p.hidden
+           where r.mode = $1 and r.score > 0
+           group by r.player_id
+         )
          select (select count(*) + 1 from best o where o.score > b.score)::int as rank, b.score as best
          from best b
          where b.player_id = $2`,

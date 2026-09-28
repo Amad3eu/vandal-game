@@ -1,6 +1,8 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { ENGINE_VERSION, checkSubmission } from '../../src/game/server'
+import { adminRouter } from './admin'
+import type { AdminStore } from './admin-db'
 import type { Player, Store } from './db'
 
 export interface AppOptions {
@@ -8,6 +10,8 @@ export interface AppOptions {
   allowedOrigins: string[] | '*'
   /** New players per IP address per hour (a person needs one; a script would make thousands). */
   playersPerHour?: number
+  /** Admin keys (see parseAdmins in admin.ts); empty turns the admin area off. */
+  admins?: Map<string, string>
 }
 
 /** More seeds than this in 10 minutes looks like a script, not a person restarting runs. */
@@ -39,11 +43,12 @@ function rateLimit(max: number, windowMs: number) {
  * if they want one), a seed per ranked run, and the run check from src/game/submission.ts,
  * which replays the run with the game's engine and ranks the replayed score.
  */
-export function createApp(store: Store, { allowedOrigins, playersPerHour = 60 }: AppOptions) {
+export function createApp(store: Store, adminStore: AdminStore, { allowedOrigins, playersPerHour = 60, admins = new Map() }: AppOptions) {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', 1) // Railway's proxy: req.ip is the player's address
   const newPlayerAllowed = rateLimit(playersPerHour, 60 * 60_000)
+  const failedAdminLoginAllowed = rateLimit(20, 10 * 60_000)
 
   app.use((req, res, next) => {
     const origin = req.headers.origin
@@ -51,7 +56,7 @@ export function createApp(store: Store, { allowedOrigins, playersPerHour = 60 }:
       res.setHeader('Access-Control-Allow-Origin', allowedOrigins === '*' ? '*' : origin)
       res.setHeader('Vary', 'Origin')
       res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type')
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
       res.setHeader('Access-Control-Max-Age', '600')
     }
     if (req.method === 'OPTIONS') {
@@ -150,6 +155,14 @@ export function createApp(store: Store, { allowedOrigins, playersPerHour = 60 }:
     res.setHeader('Cache-Control', 'no-store')
     res.json(await store.leaderboard(mode, limit))
   })
+
+  // The real artists and DJs switched on in the admin page, for the game to meet by score and phase.
+  app.get('/v1/artists', async (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=60')
+    res.json((await adminStore.artists(true)).map(({ updatedAt: _updatedAt, active: _active, ...artist }) => artist))
+  })
+
+  app.use('/admin', adminRouter(adminStore, admins, failedAdminLoginAllowed))
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'not-found' })

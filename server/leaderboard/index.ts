@@ -6,9 +6,13 @@
  *   ALLOWED_ORIGINS   sites that may call it, comma separated (default: any)
  *   PLAYERS_PER_HOUR  new players per IP address per hour (default 60; mobile carriers put
  *                     many phones behind one address)
+ *   ADMIN_TOKENS      admin keys for the admin page, one per person: "luiz:key,guime:key"
+ *                     (keys of 24+ characters; without it the admin area is off)
  *   PORT              set by Railway (default 8788)
  */
 import pg from 'pg'
+import { parseAdmins } from './admin'
+import { createAdminStore } from './admin-db'
 import { createApp } from './app'
 import { createStore } from './db'
 
@@ -25,9 +29,12 @@ const store = createStore(pool)
 await store.migrate()
 
 const origins = (process.env.ALLOWED_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean)
-const app = createApp(store, {
+const admins = parseAdmins(process.env.ADMIN_TOKENS)
+if (admins.size === 0) console.log('admin area off: set ADMIN_TOKENS to use the admin page')
+const app = createApp(store, createAdminStore(pool), {
   allowedOrigins: origins.length ? origins : '*',
   playersPerHour: Number(process.env.PLAYERS_PER_HOUR) || 60,
+  admins,
 })
 const port = Number(process.env.PORT ?? 8788)
 const server = app.listen(port, () => console.log(`leaderboard listening on :${port}`))
