@@ -21,6 +21,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+
+    /* "@/..." is src/ (used by the admin page's shadcn components) */
+    "paths": { "@/*": ["./src/*"] },
     
     "ignoreDeprecations": "5.0"
   },
