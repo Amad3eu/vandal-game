@@ -348,6 +348,16 @@
   box-shadow: none;
 }
 
+.continue-hint {
+  margin-top: -4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(20, 15, 31, 0.8);
+  color: var(--spray-yellow);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* ---- keyboard hints ---- */
 .title-hints {
   position: fixed;

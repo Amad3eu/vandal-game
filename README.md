@@ -180,6 +180,7 @@ As fases (1 Rua, 2 Metrô, 3 Telhados) não mudam mais só com os pontos. Com **
 - A câmera sobe junto com você nas plataformas altas.
 - Se errar a escada, nada acontece: ela volta depois de alguns obstáculos.
 - A bandeira salva o checkpoint: no Fim de Jogo aparece **Continuar da Fase N**, que começa de novo daquela fase com os pontos, as moedas e a velocidade de quando você pegou a bandeira.
+- É uma segunda chance por bandeira (`CONTINUES_PER_CHECKPOINT` em `src/data/phases.ts`). Depois de usar, o menu só oferece recomeçar, o que mantém o recorde com sentido. Com anúncios ligados, a segunda chance custa um anúncio recompensado (veja abaixo).
 
 ### 📱 No celular
 
@@ -222,7 +223,9 @@ src/
 src/styles/ui.css          # Botões adesivo, painéis e fundo dos diálogos (visual "Vandal UI")
 src/components/TitleScene.tsx  # Cidade à noite com o personagem correndo, no fundo da tela de título
 src/components/Chaser.tsx      # O policial da abertura e a cena do "PEGO!"
+src/ads/                       # Anúncios: interface AdsProvider, anúncio de teste e AdSense H5
 scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
+scripts/import-sprite-sheet.py # Converte uma folha de sprites (ex.: gerada por IA) para 50×50
 
 mobile/                    # App Expo (React Native) que reaproveita src/game e src/data
 ├── App.tsx                # Menu, música, recordes e fontes
@@ -292,9 +295,28 @@ A tela de título, os diálogos dos grafiteiros e o blackbook seguem um visual d
   - **Silkscreen**: rótulos pequenos em pixel.
 - Peças prontas: `.sticker-btn` (com `.is-pink`, `.is-yellow`, `.is-green`, `.is-cyan`, `.is-ghost` e `.is-small`), `.paper-panel`, `.tape` e `.street-backdrop`, em `src/styles/ui.css`.
 
+### 💰 Anúncios (beta)
+
+O único anúncio é o **recompensado da segunda chance**: assistir até o fim continua do checkpoint, e fechar antes não dá nada. Se não houver anúncio disponível, a segunda chance fica grátis. Os anúncios ficam atrás da interface `AdsProvider` (`src/ads/`), e o jogo não depende de nenhuma rede. A rede é escolhida pela variável `VITE_ADS` no `.env.local`:
+
+| `VITE_ADS` | O que faz |
+| --- | --- |
+| `none` (padrão) | Sem anúncios; a segunda chance é grátis |
+| `dev` | Anúncio de teste falso (3 s), para testar o fluxo; também dá para abrir o jogo com `?ads=dev` na URL |
+| `adsense` | Google H5 Games Ads (AdSense para jogos), no seu próprio domínio |
+
+Para o AdSense: `VITE_ADS=adsense`, `VITE_ADSENSE_CLIENT=ca-pub-...` e, para ver anúncios de teste do Google, `VITE_ADSENSE_TEST=on`. É preciso ter a conta aprovada no programa de jogos. Não use AdSense em portais (CrazyGames, Poki, GX.games): eles usam o SDK próprio ou não têm anúncios, e cada um entra como um novo provedor em `src/ads/`. No app, anúncios (AdMob) só funcionam num build de desenvolvimento do EAS, não no Expo Go. Antes de ligar anúncios de verdade, confira consentimento, privacidade e anúncios não personalizados para menores (LGPD).
+
 ### Sprites do policial e do muro
 
-Os sprites do policial (`src/assets/sprites/cop/`) e do muro com a tag (`src/assets/sprites/intro/`) são provisórios. Eles são gerados por `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Para trocar pela arte final, basta desenhar por cima mantendo os nomes dos arquivos e rodar `npm run sprites` dentro de `mobile/`.
+O policial (`src/assets/sprites/cop/`) veio de uma folha de sprites gerada por IA, convertida com o importador abaixo. O muro com a tag (`src/assets/sprites/intro/`) ainda é provisório: sai de `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Esse script só recria o policial provisório antigo com `--placeholder-cop`, e isso apaga a arte atual. Para trocar qualquer sprite, desenhe por cima mantendo os nomes dos arquivos e rode `npm run sprites` dentro de `mobile/`.
+
+Se a arte vier numa folha de sprites grande (por exemplo, gerada por IA), o importador converte para o formato do jogo. Ele tira o fundo chapado, recorta os quadros, reduz para 50×50 com os pés na mesma linha do personagem e limita a paleta:
+
+```bash
+python3 scripts/import-sprite-sheet.py ~/Downloads/policial.png   # 6 quadros lado a lado: correndo 1-4, gritando, agarrando
+cd mobile && npm run sprites                                        # atualiza o app
+```
 
 ## 📊 Performance
 

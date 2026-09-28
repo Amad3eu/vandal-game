@@ -1,11 +1,14 @@
-"""Draws the intro's placeholder pixel art: the cop who chases the player and the wall with the
-fresh "VANDAL" tag. Same grid as the player sprites (50x50, dark outline, facing right), so an
+"""Draws the intro's placeholder pixel art: the wall with the fresh "VANDAL" tag and, on request,
+a placeholder cop. Same grid as the player sprites (50x50, dark outline, facing right), so an
 artist can redraw these PNGs by hand later and keep the file names.
 
-    python3 scripts/make-intro-sprites.py
+    python3 scripts/make-intro-sprites.py                      # the wall and the tag
+    python3 scripts/make-intro-sprites.py --placeholder-cop    # also the old placeholder cop
 
-Writes src/assets/sprites/cop/*.png and src/assets/sprites/intro/*.png (needs Pillow).
+Writes src/assets/sprites/intro/*.png, and src/assets/sprites/cop/*.png with --placeholder-cop
+(that replaces the cop art imported with scripts/import-sprite-sheet.py). Needs Pillow.
 """
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -228,21 +231,22 @@ def wall_image(width=110, height=62):
 
 
 def main():
-    COP_DIR.mkdir(parents=True, exist_ok=True)
     INTRO_DIR.mkdir(parents=True, exist_ok=True)
-    frames = [
-        run_frame((CONTACT_FWD), (CONTACT_BACK), "back", "fwd", 1),
-        run_frame((PASS_SUPPORT), (PASS_SWING), "mid", "mid", 0),
-        run_frame((CONTACT_BACK), (CONTACT_FWD), "fwd", "back", 1),
-        run_frame((PASS_SWING), (PASS_SUPPORT), "mid", "mid", 0),
-    ]
-    for i, im in enumerate(frames, start=1):
-        im.save(COP_DIR / f"cop-run-{i}.png")
-    shout_frame().save(COP_DIR / "cop-shout.png")
-    catch_frame().save(COP_DIR / "cop-catch.png")
+    if "--placeholder-cop" in sys.argv:
+        COP_DIR.mkdir(parents=True, exist_ok=True)
+        frames = [
+            run_frame((CONTACT_FWD), (CONTACT_BACK), "back", "fwd", 1),
+            run_frame((PASS_SUPPORT), (PASS_SWING), "mid", "mid", 0),
+            run_frame((CONTACT_BACK), (CONTACT_FWD), "fwd", "back", 1),
+            run_frame((PASS_SWING), (PASS_SUPPORT), "mid", "mid", 0),
+        ]
+        for i, im in enumerate(frames, start=1):
+            im.save(COP_DIR / f"cop-run-{i}.png")
+        shout_frame().save(COP_DIR / "cop-shout.png")
+        catch_frame().save(COP_DIR / "cop-catch.png")
+        print("cop:", sorted(p.name for p in COP_DIR.glob("*.png")))
     wall_image().save(INTRO_DIR / "wall.png")
     tag_image().save(INTRO_DIR / "tag.png")
-    print("cop:", sorted(p.name for p in COP_DIR.glob("*.png")))
     print("intro:", sorted(p.name for p in INTRO_DIR.glob("*.png")))
 
 

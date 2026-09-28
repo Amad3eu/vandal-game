@@ -7,7 +7,7 @@ import { useFonts } from 'expo-font'
 import { Bungee_400Regular } from '@expo-google-fonts/bungee'
 import { SedgwickAveDisplay_400Regular } from '@expo-google-fonts/sedgwick-ave-display'
 import { Silkscreen_400Regular } from '@expo-google-fonts/silkscreen'
-import type { Checkpoint, GameMode } from './src/shared'
+import { CONTINUES_PER_CHECKPOINT, checkpointKey, type Checkpoint, type GameMode } from './src/shared'
 import {
   DEFAULT_PROGRESS,
   loadProgress,
@@ -33,6 +33,8 @@ export default function App() {
   // Checkpoint of the run that just ended (offered in the game over menu) and the one the
   // current run started from.
   const [lastCheckpoint, setLastCheckpoint] = useState<Checkpoint | null>(null)
+  // Second chances already used from a flag (see CONTINUES_PER_CHECKPOINT, same rule as the web).
+  const [continues, setContinues] = useState({ key: '', used: 0 })
   const [runCheckpoint, setRunCheckpoint] = useState<Checkpoint | null>(null)
   const progressRef = useRef(progress)
   progressRef.current = progress
@@ -84,11 +86,18 @@ export default function App() {
       saveHighScore(current.mode, score)
     }
     setLastScore(score)
-    setLastCheckpoint(checkpoint)
+    const exhausted = checkpoint !== null && checkpointKey(checkpoint) === continues.key && continues.used >= CONTINUES_PER_CHECKPOINT
+    setLastCheckpoint(exhausted ? null : checkpoint)
     setScreen('menu')
   }
 
   const startRun = (from: Checkpoint | null) => {
+    if (from) {
+      const key = checkpointKey(from)
+      setContinues((current) => ({ key, used: current.key === key ? current.used + 1 : 1 }))
+    } else {
+      setContinues({ key: '', used: 0 })
+    }
     setRunCheckpoint(from)
     setLastCheckpoint(null)
     setRunId((id) => id + 1)
