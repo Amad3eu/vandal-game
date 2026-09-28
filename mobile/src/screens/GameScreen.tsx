@@ -23,8 +23,19 @@ import { addToBlackbook, saveLastRun } from '../storage'
 import { COLORS, FONTS, UI } from '../theme'
 import ArtistDialog from '../components/ArtistDialog'
 import Hud from '../components/Hud'
+import RouteMap from '../components/RouteMap'
 import TouchButtons from '../components/TouchButtons'
 import World from '../components/World'
+
+/** How a run ended: for the record, the scoreboard and the continue offer. */
+export interface RunResult {
+  score: number
+  checkpoint: Checkpoint | null
+  phase: 1 | 2 | 3
+  coins: number
+  /** Meters run. */
+  distance: number
+}
 
 interface GameScreenProps {
   mode: GameMode
@@ -34,7 +45,7 @@ interface GameScreenProps {
   /** Continue from this checkpoint instead of starting from phase 1. */
   checkpoint: Checkpoint | null
   onCoinsChange: (totalCoins: number) => void
-  onGameOver: (score: number, checkpoint: Checkpoint | null) => void
+  onGameOver: (result: RunResult) => void
   onExit: () => void
 }
 
@@ -43,6 +54,7 @@ const PHASE_BANNER_MS = 2600
 /** Game over: how long the cop's grab shows before the menu, and how long the run-in takes. */
 const CAUGHT_MS = 1300
 const CAUGHT_RUN_MS = 550
+const PAUSE_SIZE = 44
 
 export default function GameScreen({ mode, totalCoins, highScore, checkpoint, onCoinsChange, onGameOver, onExit }: GameScreenProps) {
   const { width, height } = useWindowDimensions()
@@ -88,7 +100,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
   const [topBarBottom, setTopBarBottom] = useState(56)
   const [artist, setArtist] = useState<GraffitiArtist | null>(null)
   // Game over: the cop grabs the player for a moment, then the menu shows.
-  const [caught, setCaught] = useState<{ score: number; checkpoint: Checkpoint | null } | null>(null)
+  const [caught, setCaught] = useState<RunResult | null>(null)
   const [caughtMs, setCaughtMs] = useState(0)
   const running = !paused && artist === null && caught === null
 
@@ -132,7 +144,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
         } else if (event.type === 'gameOver') {
           input.releaseAll()
           saveLastRun(engine.log)
-          setCaught({ score: event.score, checkpoint: event.checkpoint })
+          setCaught({ score: event.score, checkpoint: event.checkpoint, phase: event.phase, coins: event.coins, distance: event.distance })
           return
         }
       }
@@ -172,7 +184,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
       const elapsed = Date.now() - start
       setCaughtMs(elapsed)
       if (elapsed >= CAUGHT_MS) {
-        latest.current.onGameOver(caught.score, caught.checkpoint)
+        latest.current.onGameOver(caught)
         return
       }
       frameId = requestAnimationFrame(tick)
@@ -188,8 +200,10 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
 
   const { view, clock } = frame
   const facing = view.wallClingSide !== 0 ? (-view.wallClingSide as 1 | -1) : view.player.facing ?? 1
-  // Standing still while tagging the wall in the intro.
-  const moving = mode === 'runner' ? view.introStage === null : Math.abs(view.player.velocityX ?? 0) > 0.3
+  // Standing still while tagging the wall in the intro, and while down after a skate SLAM.
+  const moving = view.slamProgress === null && (mode === 'runner' ? view.introStage === null : Math.abs(view.player.velocityX ?? 0) > 0.3)
+  // Route map under the pause button; smaller on phones, like the web's.
+  const smallMap = width <= 760 || height <= 520
   // Checkpoint banner: fades in, stays, fades out (the web version animates it in CSS).
   const bannerOpacity =
     view.phase > 1 && view.phaseMs < PHASE_BANNER_MS
@@ -210,6 +224,20 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
         moving={moving}
         caughtProgress={caught ? Math.min(1, caughtMs / CAUGHT_RUN_MS) : null}
       />
+
+      <View
+        pointerEvents="none"
+        style={[styles.routeMap, { top: Math.max(8, insets.top) + PAUSE_SIZE + 8, left: Math.max(8, insets.left) }]}
+      >
+        <RouteMap
+          score={view.score}
+          phase={view.phase}
+          distance={view.distance}
+          clock={clock}
+          width={smallMap ? 70 : 104}
+          height={smallMap ? 105 : 156}
+        />
+      </View>
 
       <View testID="touch-layer" style={StyleSheet.absoluteFill} {...trackerRef.current} />
       <TouchButtons buttons={buttons} isPressed={input.isPressed} />
@@ -303,8 +331,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pauseButton: {
-    width: 44,
-    height: 44,
+    width: PAUSE_SIZE,
+    height: PAUSE_SIZE,
     borderRadius: 12,
     borderWidth: 3,
     borderColor: UI.ink,
@@ -319,6 +347,9 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 1,
     backgroundColor: UI.ink,
+  },
+  routeMap: {
+    position: 'absolute',
   },
   grind: {
     position: 'absolute',

@@ -59,6 +59,11 @@ export default function Hud({ view, mode, highScore }: HudProps) {
           {seconds(view.lightningMs)}
         </Sticker>
       )}
+      {view.skateMs > 0 && (
+        <Sticker label="Turbo skate" color={UI.cyan} tilt={1}>
+          {seconds(view.skateMs)}
+        </Sticker>
+      )}
       {view.jumpBoostMs > 0 && (
         <Sticker label="Super pulo" color="#ffc27a" tilt={-1}>
           {seconds(view.jumpBoostMs)}

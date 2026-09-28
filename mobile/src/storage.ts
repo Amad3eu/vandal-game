@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { GAME_MODES, type GameMode, type GraffitiArt, type RunLog } from './shared'
+import { GAME_MODES, LOCAL_BOARD_KEY, parseLocalBoard, type GameMode, type GraffitiArt, type LocalScore, type RunLog } from './shared'
 
 // Same keys as the web version's localStorage.
 const MODE_KEY = 'dinoGameMode'
@@ -48,6 +48,13 @@ export const saveHighScore = (mode: GameMode, score: number) => save(GAME_MODES[
 
 /** The last run's log (seed + inputs per tick), kept for replays and, later, score checks. */
 export const saveLastRun = (log: RunLog | null) => log && save(LAST_RUN_KEY, JSON.stringify(log))
+
+/** Best runs on this device (same key and format as the web's localStorage). */
+export async function loadLocalBoard(): Promise<LocalScore[]> {
+  return parseLocalBoard(await AsyncStorage.getItem(LOCAL_BOARD_KEY).catch(() => null))
+}
+
+export const saveLocalBoard = (board: LocalScore[]) => save(LOCAL_BOARD_KEY, JSON.stringify(board))
 
 export async function addToBlackbook(art: GraffitiArt) {
   const saved = await AsyncStorage.getItem(BLACKBOOK_KEY).catch(() => null)

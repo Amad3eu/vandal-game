@@ -26,10 +26,12 @@ GROUPS = {
     "train": ("Train", "Sprite-*.png"),
 }
 
-# Single images kept by name: the intro's cop and the tagged wall (see ../scripts/make-intro-sprites.py).
+# Single images kept by name: the intro's cop and the tagged wall (see ../scripts/make-intro-sprites.py),
+# and the skate SLAM's fire (see ../scripts/make-fx-sprites.py).
 NAMED = {
     "cop": ("cop", ["cop-run-1", "cop-run-2", "cop-run-3", "cop-run-4", "cop-shout", "cop-catch"]),
     "intro": ("intro", ["wall", "tag"]),
+    "fx": ("fx", [f"fire-{i:02d}" for i in range(1, 15)]),
 }
 
 

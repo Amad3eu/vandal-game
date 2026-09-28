@@ -64,6 +64,24 @@ export const COP_CATCH: ImageSourcePropType = require('../assets/sprites/cop/cop
 export const INTRO_WALL: ImageSourcePropType = require('../assets/sprites/intro/wall.png')
 export const INTRO_TAG: ImageSourcePropType = require('../assets/sprites/intro/tag.png')
 
+// Skate SLAM: Doom-style fire, burning then dying out (../scripts/make-fx-sprites.py).
+export const FIRE_FRAMES: ImageSourcePropType[] = [
+  require('../assets/sprites/fx/fire-01.png'),
+  require('../assets/sprites/fx/fire-02.png'),
+  require('../assets/sprites/fx/fire-03.png'),
+  require('../assets/sprites/fx/fire-04.png'),
+  require('../assets/sprites/fx/fire-05.png'),
+  require('../assets/sprites/fx/fire-06.png'),
+  require('../assets/sprites/fx/fire-07.png'),
+  require('../assets/sprites/fx/fire-08.png'),
+  require('../assets/sprites/fx/fire-09.png'),
+  require('../assets/sprites/fx/fire-10.png'),
+  require('../assets/sprites/fx/fire-11.png'),
+  require('../assets/sprites/fx/fire-12.png'),
+  require('../assets/sprites/fx/fire-13.png'),
+  require('../assets/sprites/fx/fire-14.png'),
+]
+
 export const POWER_JUMP: ImageSourcePropType = require('../assets/sprites/powerups/jump.png')
 export const POWER_LIGHTNING: ImageSourcePropType = require('../assets/sprites/powerups/lightning.png')
 

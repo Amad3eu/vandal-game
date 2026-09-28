@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { CHECKPOINT_TIP, GAME_MODES, GAME_MODE_ORDER, PHASES, type Checkpoint, type GameMode } from '../shared'
+import { CHECKPOINT_TIP, GAME_MODES, GAME_MODE_ORDER, PHASES, formatDistance, localTop, type Checkpoint, type GameMode, type LocalScore } from '../shared'
 import type { SavedProgress } from '../storage'
 import { NIGHT_BACKGROUND, RUN_FRAMES } from '../sprites'
 import { COLORS, FONTS, UI } from '../theme'
@@ -11,8 +11,13 @@ interface MenuScreenProps {
   progress: SavedProgress
   /** Score of the run that just ended, or null when opening the app. */
   lastScore: number | null
+  /** Meters run in the run that just ended. */
+  distance: number
   /** The run that just ended beat the record. */
   newRecord: boolean
+  /** Best runs on this device, and the last run's place among them (null: not in the top). */
+  localBoard: LocalScore[]
+  localRank: number | null
   /** Checkpoint reached in the run that just ended: offers to continue from it. */
   checkpoint: Checkpoint | null
   onModeChange: (mode: GameMode) => void
@@ -103,7 +108,10 @@ function Sheet({ visible, title, onClose, children }: { visible: boolean; title:
 export default function MenuScreen({
   progress,
   lastScore,
+  distance,
   newRecord,
+  localBoard,
+  localRank,
   checkpoint,
   onModeChange,
   onMusicChange,
@@ -112,7 +120,7 @@ export default function MenuScreen({
 }: MenuScreenProps) {
   const insets = useSafeAreaInsets()
   const { height } = useWindowDimensions()
-  const [panel, setPanel] = useState<'how-to' | 'about' | null>(null)
+  const [panel, setPanel] = useState<'how-to' | 'about' | 'board' | null>(null)
   const modeInfo = GAME_MODES[progress.mode]
   const highScore = progress.highScores[progress.mode]
   const gameOver = lastScore !== null
@@ -159,6 +167,16 @@ export default function MenuScreen({
                 <Text style={styles.resultValue}>{highScore}</Text>
               </View>
             </View>
+            {distance > 0 && (
+              <Text testID="distance" style={styles.distance}>
+                📍 {formatDistance(distance)} percorridos
+              </Text>
+            )}
+            {localRank !== null && (
+              <Text testID="local-rank" style={styles.localRank}>
+                📱 #{localRank} neste aparelho
+              </Text>
+            )}
           </Paper>
         )}
 
@@ -212,6 +230,7 @@ export default function MenuScreen({
             />
             <StickerButton size="small" label="? Como jogar" onPress={() => setPanel('how-to')} style={styles.rowItem} />
           </View>
+          <StickerButton testID="board" color={UI.yellow} label="🏆 Placar" onPress={() => setPanel('board')} />
           <StickerButton size="small" ghost textColor="#fff" label="★ Sobre a parceria" onPress={() => setPanel('about')} />
         </View>
       </ScrollView>
@@ -232,6 +251,26 @@ export default function MenuScreen({
             )
           )}
         </View>
+      </Sheet>
+
+      <Sheet visible={panel === 'board'} title={`🏆 Placar · ${modeInfo.title}`} onClose={() => setPanel(null)}>
+        <Text style={styles.boardNote}>Suas melhores partidas, guardadas neste aparelho.</Text>
+        {localTop(localBoard, progress.mode).length === 0 ? (
+          <Text style={styles.boardEmpty}>Jogue uma partida para aparecer aqui.</Text>
+        ) : (
+          localTop(localBoard, progress.mode).map((row, index) => (
+            <View key={`${row.date}-${index}`} testID="local-board-row" style={[styles.boardRow, index === 0 && { backgroundColor: UI.yellow }]}>
+              <Text style={styles.boardRank}>#{index + 1}</Text>
+              <Text style={styles.boardInfo} numberOfLines={1}>
+                {PHASES[row.phase].emoji} fase {row.phase} ·{' '}
+                {row.distance ? `${formatDistance(row.distance)} · ` : ''}
+                {new Date(row.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                {row.continued ? ' · continuou' : ''}
+              </Text>
+              <Text style={styles.boardScore}>{row.score}</Text>
+            </View>
+          ))
+        )}
       </Sheet>
 
       <Sheet visible={panel === 'about'} title="Colaboração" onClose={() => setPanel(null)}>
@@ -422,6 +461,61 @@ const styles = StyleSheet.create({
   },
   menu: {
     gap: 10,
+  },
+  distance: {
+    marginTop: 10,
+    fontFamily: FONTS.display,
+    fontSize: 15,
+    color: UI.ink,
+  },
+  localRank: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: UI.night2,
+    color: '#fff',
+    fontFamily: FONTS.display,
+    fontSize: 14,
+  },
+  boardNote: {
+    color: UI.mutedInk,
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  boardEmpty: {
+    paddingVertical: 20,
+    textAlign: 'center',
+    fontFamily: FONTS.display,
+    color: UI.ink,
+  },
+  boardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    borderWidth: 2,
+    borderColor: UI.ink,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  boardRank: {
+    width: 36,
+    fontFamily: FONTS.pixel,
+    color: UI.ink,
+  },
+  boardInfo: {
+    flex: 1,
+    color: UI.ink,
+    fontWeight: '700',
+  },
+  boardScore: {
+    fontFamily: FONTS.display,
+    fontSize: 16,
+    color: UI.ink,
   },
   row: {
     flexDirection: 'row',
