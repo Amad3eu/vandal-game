@@ -309,7 +309,7 @@ Para o AdSense: `VITE_ADS=adsense`, `VITE_ADSENSE_CLIENT=ca-pub-...` e, para ver
 
 ### Sprites do policial e do muro
 
-Os sprites do policial (`src/assets/sprites/cop/`) e do muro com a tag (`src/assets/sprites/intro/`) são provisórios. Eles são gerados por `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Para trocar pela arte final, basta desenhar por cima mantendo os nomes dos arquivos e rodar `npm run sprites` dentro de `mobile/`.
+O policial (`src/assets/sprites/cop/`) veio de uma folha de sprites gerada por IA, convertida com o importador abaixo. O muro com a tag (`src/assets/sprites/intro/`) ainda é provisório: sai de `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Esse script só recria o policial provisório antigo com `--placeholder-cop`, e isso apaga a arte atual. Para trocar qualquer sprite, desenhe por cima mantendo os nomes dos arquivos e rode `npm run sprites` dentro de `mobile/`.
 
 Se a arte vier numa folha de sprites grande (por exemplo, gerada por IA), o importador converte para o formato do jogo. Ele tira o fundo chapado, recorta os quadros, reduz para 50×50 com os pés na mesma linha do personagem e limita a paleta:
 
