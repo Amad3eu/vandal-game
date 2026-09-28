@@ -1,6 +1,7 @@
 /**
- * Online leaderboard behind one small interface, like the ads: Supabase in production, a fake
- * local board for testing (`?online=dev` or VITE_ONLINE=dev), or nothing (offline, the default).
+ * Online leaderboard behind one small interface, like the ads: our own server (server/leaderboard,
+ * on Railway: VITE_LEADERBOARD_URL), Supabase, a fake local board for testing (`?online=dev` or
+ * VITE_ONLINE=dev), or nothing (offline, the default).
  *
  * A ranked run asks the server for its seed (startRun), and when it ends the whole run log is
  * sent (submitRun): the server replays it and ranks the replayed score.
@@ -8,6 +9,7 @@
 import type { GameMode } from '../types/game'
 import type { RunLog } from '../game/engine'
 import { createDevOnline } from './dev'
+import { createServerOnline } from './server'
 import { createSupabaseOnline } from './supabase'
 
 export interface RunTicket {
@@ -31,7 +33,7 @@ export interface LeaderboardRow {
 }
 
 export interface OnlineService {
-  readonly name: 'supabase' | 'dev'
+  readonly name: 'server' | 'supabase' | 'dev'
   /** Seed for a ranked run, or null if the server can't be reached (the run is then offline). */
   startRun(mode: GameMode): Promise<RunTicket | null>
   submitRun(ticket: RunTicket, log: RunLog): Promise<SubmitResult>
@@ -52,15 +54,17 @@ export function getOnline(): OnlineService | null {
   if (service !== undefined) return service
   const forced = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('online') : null
   const choice = forced ?? import.meta.env.VITE_ONLINE
+  const server = import.meta.env.VITE_LEADERBOARD_URL
   const url = import.meta.env.VITE_SUPABASE_URL
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY
   if (choice === 'dev') service = createDevOnline()
+  else if (server) service = createServerOnline(server)
   else if (url && key) service = createSupabaseOnline(url, key)
   else service = null
   return service
 }
 
-/** Friendly text for why the server refused a run (reasons from supabase/functions/_shared/submission.ts). */
+/** Friendly text for why the server refused a run (reasons from src/game/submission.ts). */
 export function rejectionText(reason?: string) {
   switch (reason) {
     case 'continued-run':

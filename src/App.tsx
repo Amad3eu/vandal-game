@@ -132,8 +132,15 @@ export default function App() {
     }
     if (online && ticket && log && !log.checkpoint) {
       setSubmission({ status: 'sending' })
+      // A run with no points is checked but not listed, so there's nothing to show for it.
       online.submitRun(ticket, log).then((result) =>
-        setSubmission(result.accepted ? { status: 'ranked', rank: result.rank ?? null, best: result.best } : { status: 'refused', reason: result.reason })
+        setSubmission(
+          !result.accepted
+            ? { status: 'refused', reason: result.reason }
+            : result.score === 0
+              ? { status: 'none' }
+              : { status: 'ranked', rank: result.rank ?? null, best: result.best }
+        )
       )
     } else {
       setSubmission({ status: 'none' })
