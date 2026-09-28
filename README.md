@@ -252,6 +252,7 @@ src/ads/                       # Anúncios: interface AdsProvider, anúncio de t
 src/online/                    # Placar global: servidor próprio, Supabase ou placar falso (?online=dev); desligado sem configuração
 src/data/scoreBoard.ts         # Placar deste aparelho (melhores partidas por modo)
 server/leaderboard/            # Servidor do placar global (Node + Postgres), feito para o Railway (railway.json)
+src/admin/                     # Painel admin (/admin): roadmap, moderação do placar, grafiteiros e DJs (shadcn/ui)
 supabase/migrations/           # Banco do placar: tabelas, RLS e funções SQL
 supabase/functions/            # start-run (semente) e submit-run (replay e placar), em Deno
 scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
@@ -409,6 +410,35 @@ A mesma ideia com as funções `start-run` e `submit-run` (Deno) e tabelas com R
 Se as duas estiverem configuradas, o site usa o servidor próprio (`VITE_LEADERBOARD_URL`).
 
 Sempre que mudar as regras do jogo, aumente o `ENGINE_VERSION`, para o servidor não comparar partidas com regras diferentes. No Railway, o deploy seguinte já leva as regras novas. No Supabase, rode `npm run build:server-engine` e publique as funções de novo.
+
+### 🛠️ Painel admin (`/admin`)
+
+Uma página só para o time, em `https://<site>/admin` (fora do menu do jogo e dos buscadores). Ela tem quatro abas:
+
+- **Roadmap:** para onde o jogo vai, o que já foi entregue (com os PRs) e as decisões tomadas. Os dados ficam em `src/admin/roadmap.ts`. Atualize esse arquivo no mesmo PR de cada entrega.
+- **Placar:** os jogadores do placar global. Dá para trocar ou apagar um apelido, esconder um jogador do placar (ele continua jogando, só não aparece) e apagar uma partida suspeita.
+- **Grafiteiros & DJs:** o cadastro dos artistas reais (grafite, DJ, MC e breaking), com cidade, Instagram, bio, cor, assinatura (PNG, WebP ou JPEG de até 300 KB), fase e pontuação mínima para aparecer. Os ativos saem em `GET /v1/artists`, que o jogo vai usar na próxima etapa.
+- **Registro:** cada ação feita no painel, com o nome de quem fez.
+
+Para entrar, cada pessoa do time usa a sua chave de admin, conferida pelo servidor do placar. Para criar as chaves:
+
+1. Gere uma chave por pessoa (uma sequência aleatória longa, de 24 caracteres ou mais):
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+   ```
+
+2. No Railway, no serviço do servidor, crie a variável `ADMIN_TOKENS` com `nome:chave`, separados por vírgula, e faça o deploy:
+
+   ```bash
+   ADMIN_TOKENS=luiz:<chave-do-luiz>,guime:<chave-do-guime>
+   ```
+
+3. Mande a chave para cada pessoa por um canal privado. A chave fica só na aba do navegador (fecha a aba, sai). Para tirar o acesso de alguém, remova a chave da variável.
+
+Depois de 20 chaves erradas em 10 minutos, o mesmo endereço fica bloqueado por um tempo.
+
+O painel usa [shadcn/ui](https://ui.shadcn.com) com Tailwind, só nele: é uma página separada (`admin.html`, código em `src/admin/`), e o CSS do jogo não muda. Para adicionar um componente, use `npx shadcn@latest add <componente>` (o `components.json` já aponta para `src/admin/components/ui`).
 
 ### Sprites do policial, do muro e do fogo
 
