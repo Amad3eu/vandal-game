@@ -1,0 +1,151 @@
+/* Skate SLAM: fire over the player, the board flying off and the "SLAM!" sticker. */
+.slam-fire {
+  position: absolute;
+  z-index: 4;
+  image-rendering: pixelated;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px rgba(255, 140, 20, 0.55));
+}
+
+/* The board shoots up spinning and falls off to the left, like in a bail. */
+.slam-board {
+  position: absolute;
+  z-index: 4;
+  width: 64px;
+  height: 18px;
+  pointer-events: none;
+  animation: slamBoard 1s cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+}
+
+.slam-board-deck {
+  position: absolute;
+  inset: 0 0 6px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: #fdf6c3;
+}
+
+.slam-board-wheel {
+  position: absolute;
+  bottom: 0;
+  width: 11px;
+  height: 11px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: #0b4a3c;
+}
+
+.slam-board-wheel.is-left {
+  left: 8px;
+}
+
+.slam-board-wheel.is-right {
+  right: 8px;
+}
+
+@keyframes slamBoard {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  45% {
+    transform: translate(-30px, -170px) rotate(-300deg);
+  }
+  100% {
+    transform: translate(-90px, 60px) rotate(-560deg);
+    opacity: 0;
+  }
+}
+
+/* "SLAM!" in the two-color print style of skate zines: cream letters, deep green ink. */
+.slam-sticker {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 90px;
+  transform: translateX(-50%) rotate(-8deg);
+  pointer-events: none;
+  animation: slamPop 0.28s cubic-bezier(0.2, 1.6, 0.5, 1) both;
+}
+
+.slam-burst {
+  position: absolute;
+  inset: 0;
+  background: #0b4a3c;
+  clip-path: polygon(50% 0%, 60% 26%, 88% 8%, 76% 36%, 100% 42%, 78% 56%, 96% 82%, 66% 70%, 58% 100%, 46% 74%, 20% 96%, 26% 66%, 0% 64%, 22% 48%, 4% 22%, 34% 30%);
+}
+
+.slam-burst::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  background: #fdf6c3;
+  clip-path: inherit;
+}
+
+.slam-sticker strong {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 400;
+  color: #fdf6c3;
+  -webkit-text-stroke: 3px #0b4a3c;
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 #0b4a3c;
+  letter-spacing: 0.04em;
+}
+
+@keyframes slamPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) rotate(-8deg) scale(2.2);
+  }
+}
+
+/* The hit shakes the street for a moment. */
+.game-scene.is-slammed {
+  animation: slamShake 0.3s linear;
+}
+
+@keyframes slamShake {
+  25% {
+    translate: -5px 3px;
+  }
+  50% {
+    translate: 4px -2px;
+  }
+  75% {
+    translate: -3px 1px;
+  }
+}
+
+/* Obstacles knocked by the SLAM fly off spinning. */
+.obstacle.knocked {
+  animation: knockedAway 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes knockedAway {
+  to {
+    transform: translate(160px, -260px) rotate(540deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* Back on the feet: blinking see-through while the skate's protection lasts. */
+.dinosaur.recovering {
+  animation: recoverBlink 0.18s steps(2, jump-none) infinite;
+}
+
+@keyframes recoverBlink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-scene.is-slammed,
+  .slam-board {
+    animation: none;
+  }
+}

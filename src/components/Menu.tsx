@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import './Menu.css'
-import type { MusicOption } from '../App'
+import type { MusicOption, Submission } from '../App'
+import { rejectionText, type OnlineService } from '../online/online'
+import type { LocalScore } from '../data/scoreBoard'
+import { formatDistance } from '../data/routeMap'
+import Leaderboard from './Leaderboard'
 import type { Checkpoint, GameMode } from '../types/game'
 import { GAME_MODES, GAME_MODE_ORDER } from '../data/gameModes'
 import { CHECKPOINT_TIP, PHASES } from '../data/phases'
@@ -18,6 +22,17 @@ interface MenuProps {
   selectedMusic: MusicOption
   onMusicChange: (music: MusicOption) => void
   onStart: () => void
+  /** Waiting for the leaderboard server's seed before the run starts. */
+  starting?: boolean
+  /** The online leaderboard, when it's set up. */
+  online?: OnlineService | null
+  /** What happened to the run that just ended on the leaderboard. */
+  submission?: Submission
+  /** Best runs on this device, and the last run's place among them (null: not in the top). */
+  localBoard?: LocalScore[]
+  localRank?: number | null
+  /** Meters the run that just ended covered. */
+  distance?: number
   /** Checkpoint reached in the run that just ended: offers to continue from it. */
   checkpoint?: Checkpoint | null
   /** The second chance costs a rewarded ad. */
@@ -61,6 +76,12 @@ export default function Menu({
   selectedMusic,
   onMusicChange,
   onStart,
+  starting = false,
+  online = null,
+  submission = { status: 'none' },
+  localBoard = [],
+  localRank = null,
+  distance = 0,
   checkpoint = null,
   continueWithAd = false,
   adState = 'idle',
@@ -69,7 +90,7 @@ export default function Menu({
   blackbookCount = 0,
   onOpenBlackbook,
 }: MenuProps) {
-  const [openPanel, setOpenPanel] = useState<'how-to' | 'about' | null>(null)
+  const [openPanel, setOpenPanel] = useState<'how-to' | 'about' | 'board' | null>(null)
   const modeInfo = GAME_MODES[selectedMode]
   const totalCoins = readTotalCoins()
   const canContinue = gameOver && checkpoint !== null && onContinue !== undefined
@@ -127,6 +148,25 @@ export default function Menu({
                 <strong>{highScore}</strong>
               </div>
             </div>
+            {distance > 0 && (
+              <p className="result-distance" data-testid="distance">
+                📍 {formatDistance(distance)} percorridos
+              </p>
+            )}
+            {localRank !== null && (
+              <p className="result-online is-local" data-testid="local-rank">
+                📱 #{localRank} neste aparelho
+              </p>
+            )}
+            {submission.status !== 'none' && (
+              <p className={`result-online is-${submission.status}`} data-testid="submission" role="status">
+                {submission.status === 'sending' && '🏆 Conferindo no servidor…'}
+                {submission.status === 'ranked' &&
+                  (submission.rank ? `🏆 #${submission.rank} no placar` : '🏆 No placar') +
+                    (submission.best !== undefined ? ` · seu melhor: ${submission.best}` : '')}
+                {submission.status === 'refused' && `⚠ ${rejectionText(submission.reason)}`}
+              </p>
+            )}
           </section>
         )}
 
@@ -159,8 +199,9 @@ export default function Menu({
             ref={canContinue ? undefined : primaryRef}
             className={`sticker-btn menu-main ${canContinue ? 'is-yellow' : 'is-pink'}`}
             onClick={onStart}
+            disabled={starting}
           >
-            ▶ {gameOver ? (canContinue ? 'Recomeçar da fase 1' : 'Jogar de novo') : 'Jogar'}
+            {starting ? 'Conectando…' : `▶ ${gameOver ? (canContinue ? 'Recomeçar da fase 1' : 'Jogar de novo') : 'Jogar'}`}
           </button>
 
           <div className="mode-switch" role="radiogroup" aria-label="Modo de jogo">
@@ -182,6 +223,10 @@ export default function Menu({
             })}
           </div>
           <p className="mode-tagline">{modeInfo.tagline}</p>
+
+          <button className="sticker-btn is-yellow" onClick={() => setOpenPanel('board')}>
+            🏆 Placar
+          </button>
 
           {onOpenBlackbook && (
             <button className="sticker-btn is-cyan" onClick={onOpenBlackbook}>
@@ -262,6 +307,25 @@ export default function Menu({
               <li>Encontre grafiteiros para trocar assinaturas no seu blackbook.</li>
               <li>{modeInfo.tip}.</li>
             </ul>
+          </div>
+        </div>
+      )}
+
+      {openPanel === 'board' && (
+        <div className="street-backdrop" onClick={() => setOpenPanel(null)}>
+          <div
+            className="title-panel paper-panel"
+            role="dialog"
+            aria-labelledby="board-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="sticker-btn is-small panel-close" onClick={() => setOpenPanel(null)} aria-label="Fechar">
+              ✕
+            </button>
+            <h2 id="board-title" className="panel-title">
+              🏆 Placar
+            </h2>
+            <Leaderboard online={online} mode={selectedMode} localBoard={localBoard} />
           </div>
         </div>
       )}

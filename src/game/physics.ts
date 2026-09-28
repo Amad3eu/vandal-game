@@ -112,7 +112,7 @@ export function moveAgainstBuildings(dino: DinosaurState, dx: number, obstacles:
   const bottom = dino.y + dino.height
 
   for (const building of obstacles) {
-    if (building.type !== 'building') continue
+    if (building.type !== 'building' || building.knocked) continue
     if (bottom <= building.y + ROOF_STEP_TOLERANCE) continue // on (or above) the roof
 
     const wallLeft = building.x + 4

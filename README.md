@@ -182,6 +182,26 @@ As fases (1 Rua, 2 Metrô, 3 Telhados) não mudam mais só com os pontos. Com **
 - A bandeira salva o checkpoint: no Fim de Jogo aparece **Continuar da Fase N**, que começa de novo daquela fase com os pontos, as moedas e a velocidade de quando você pegou a bandeira.
 - É uma segunda chance por bandeira (`CONTINUES_PER_CHECKPOINT` em `src/data/phases.ts`). Depois de usar, o menu só oferece recomeçar, o que mantém o recorde com sentido. Com anúncios ligados, a segunda chance custa um anúncio recompensado (veja abaixo).
 
+### 🛹 Skate e SLAM
+
+A partir de 300 pontos pode aparecer um **skate** no chão. Pegando, você anda nele por 15 segundos (o HUD mostra "Turbo skate"). Se bater enquanto está no skate, você não perde: é um **SLAM**.
+
+- O personagem cai de costas num fogo no estilo do Doom, o obstáculo sai voando e aparece o adesivo "SLAM!".
+- Depois ele levanta e volta piscando, meio transparente, sem poder se machucar por 1,6 s.
+- O skate se perde na queda.
+
+Os tempos ficam em `src/game/config.ts` (`SKATE_SPAWN_SCORE`, `SKATE_SPAWN_CHANCE`, `SLAM_MS`, `RECOVER_MS`). O desenho da queda fica em `src/data/slam.ts`, que a web e o app usam igual.
+
+### 🗺️ Mapa da rota
+
+No canto de cima fica um mapinha no estilo GPS: a rota desenhada à mão do START até as bandeiras do Metrô e dos Telhados.
+
+- O trecho já corrido fica rosa e a bolinha amarela é você.
+- Em cima aparece a distância percorrida.
+- Quando a escada de uma bandeira vai aparecer, a bandeira pisca "SUBA!".
+
+A distância também aparece no Fim de Jogo e no placar do aparelho. A rota (`src/data/routeMap.ts`) é a mesma na web e no app.
+
 ### 📱 No celular
 
 Aparecem botões na tela: `◀` `▶` para andar (modo Livre), `▲` pular, `▼` abaixar e `⚡` dash. No modo Corrida, tocar em qualquer lugar da tela também pula. Em telas pequenas o cenário é reduzido para dar tempo de ver o que vem pela frente.
@@ -203,7 +223,9 @@ src/
 │   └── HUD.css
 ├── data/
 │   ├── gameModes.ts       # Modos de jogo (Corrida / Livre) e ajustes de dificuldade
-│   └── phases.ts          # Nomes das fases e dica do checkpoint
+│   ├── phases.ts          # Nomes das fases e dica do checkpoint
+│   ├── routeMap.ts        # Rota do mapinha, bandeiras e distância (web e app)
+│   └── slam.ts            # Queda do SLAM: pose, fogo e tempos (web e app)
 ├── game/                  # Regras do jogo, sem React nem DOM (reaproveitável no app Expo)
 │   ├── engine.ts          # Estado da partida, passo por frame, ações e eventos
 │   ├── physics.ts         # Gravidade, colisões e paredes
@@ -223,14 +245,21 @@ src/
 src/styles/ui.css          # Botões adesivo, painéis e fundo dos diálogos (visual "Vandal UI")
 src/components/TitleScene.tsx  # Cidade à noite com o personagem correndo, no fundo da tela de título
 src/components/Chaser.tsx      # O policial da abertura e a cena do "PEGO!"
+src/components/RouteMap.tsx    # Mapinha da rota no canto da tela
+src/components/SlamEffect.tsx  # Fogo, skate voando e adesivo "SLAM!"
 src/ads/                       # Anúncios: interface AdsProvider, anúncio de teste e AdSense H5
+src/online/                    # Placar global: Supabase ou placar falso (?online=dev); desligado sem chaves
+src/data/scoreBoard.ts         # Placar deste aparelho (melhores partidas por modo)
+supabase/migrations/           # Banco do placar: tabelas, RLS e funções SQL
+supabase/functions/            # start-run (semente) e submit-run (replay e placar), em Deno
 scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
 scripts/import-sprite-sheet.py # Converte uma folha de sprites (ex.: gerada por IA) para 50×50
+scripts/make-fx-sprites.py     # Gera os quadros do fogo do SLAM (fogo do Doom)
 
 mobile/                    # App Expo (React Native) que reaproveita src/game e src/data
 ├── App.tsx                # Menu, música, recordes e fontes
 ├── src/screens/           # Menu e tela do jogo
-├── src/components/        # Cenário, personagem, obstáculos, HUD e botões de toque
+├── src/components/        # Cenário, personagem, obstáculos, HUD, mapa, SLAM e botões de toque
 ├── src/input.ts           # Multi-toque e posição dos botões
 ├── src/storage.ts         # Recordes, moedas e blackbook (AsyncStorage)
 └── scripts/build-sprites.py
@@ -307,7 +336,48 @@ O único anúncio é o **recompensado da segunda chance**: assistir até o fim c
 
 Para o AdSense: `VITE_ADS=adsense`, `VITE_ADSENSE_CLIENT=ca-pub-...` e, para ver anúncios de teste do Google, `VITE_ADSENSE_TEST=on`. É preciso ter a conta aprovada no programa de jogos. Não use AdSense em portais (CrazyGames, Poki, GX.games): eles usam o SDK próprio ou não têm anúncios, e cada um entra como um novo provedor em `src/ads/`. No app, anúncios (AdMob) só funcionam num build de desenvolvimento do EAS, não no Expo Go. Antes de ligar anúncios de verdade, confira consentimento, privacidade e anúncios não personalizados para menores (LGPD).
 
-### Sprites do policial e do muro
+### 🏆 Placar
+
+**Neste aparelho (já funciona, sem servidor):** as 10 melhores partidas de cada modo ficam guardadas no próprio aparelho (`localStorage` no site, `AsyncStorage` no app), com a fase alcançada, a data e a marca "continuou" quando a partida veio de um checkpoint. O Fim de Jogo mostra a posição, por exemplo "#2 neste aparelho". A lógica fica em `src/data/scoreBoard.ts` e é a mesma no site e no app.
+
+**Global (próxima etapa, guardada):** um placar único para todos, num servidor. Uma versão com Supabase já está pronta no código e fica **desligada** até receber as chaves (abaixo). Se o servidor for outro, como Node + Postgres no Railway, a parte que não muda é a conferência da partida (`supabase/functions/_shared/submission.ts`, que é TypeScript puro) e a engine que refaz a partida. Quando ele está ligado, o painel "🏆 Placar" ganha a aba "Global".
+
+#### Placar global com Supabase
+
+O placar só aceita pontuação que o servidor confirmou jogando a partida de novo:
+
+1. Ao apertar **Jogar**, o jogo pede ao servidor a semente da partida (função `start-run`). Assim ninguém escolhe uma semente "boa" testando offline.
+2. No fim, o jogo envia a gravação: semente e comandos por tick (função `submit-run`).
+3. O servidor refaz a partida com a mesma engine (`src/game`, empacotada em `supabase/functions/_shared/vandal-engine.js`) e grava a pontuação do replay, não a que o aparelho mandou.
+4. Cada semente vale uma vez. A partida não pode ter durado mais que o tempo desde que a semente saiu, e partidas continuadas do checkpoint não entram no placar (v1).
+5. As tabelas têm RLS: o jogo lê o placar e edita o próprio apelido, mas não grava partidas; só as funções do servidor gravam (`supabase/migrations/`).
+
+Sem configuração o jogo fica offline, como antes. Para ver o fluxo sem servidor, abra com `?online=dev`: é um placar falso, guardado no navegador, que também confere o replay.
+
+Para ligar de verdade:
+
+1. Crie um projeto em [supabase.com](https://supabase.com) e ative **Anonymous sign-ins** em Authentication → Sign In / Providers. Os jogadores entram sem cadastro e escolhem um apelido. Vale ativar também um CAPTCHA contra abuso.
+2. No terminal, na raiz do projeto:
+
+   ```bash
+   npx supabase login
+   npx supabase init                                # cria supabase/config.toml (mantém migrations/ e functions/)
+   npx supabase link --project-ref <id-do-projeto>
+   npx supabase db push                             # tabelas, regras (RLS) e funções do placar
+   npm run build:server-engine                      # empacota a engine para o servidor
+   npx supabase functions deploy start-run submit-run
+   ```
+
+3. No `.env.local` do site, coloque as chaves públicas (Project Settings → API). A chave `service_role` nunca vai no jogo:
+
+   ```bash
+   VITE_SUPABASE_URL=https://<id-do-projeto>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<anon public key>
+   ```
+
+Sempre que mudar as regras do jogo, faça três coisas: aumente o `ENGINE_VERSION`, rode `npm run build:server-engine` e publique as funções de novo. Assim o servidor confere as partidas com as mesmas regras do jogo.
+
+### Sprites do policial, do muro e do fogo
 
 O policial (`src/assets/sprites/cop/`) veio de uma folha de sprites gerada por IA, convertida com o importador abaixo. O muro com a tag (`src/assets/sprites/intro/`) ainda é provisório: sai de `python3 scripts/make-intro-sprites.py` (precisa do Pillow), na mesma grade 50×50 do personagem. Esse script só recria o policial provisório antigo com `--placeholder-cop`, e isso apaga a arte atual. Para trocar qualquer sprite, desenhe por cima mantendo os nomes dos arquivos e rode `npm run sprites` dentro de `mobile/`.
 
@@ -317,6 +387,8 @@ Se a arte vier numa folha de sprites grande (por exemplo, gerada por IA), o impo
 python3 scripts/import-sprite-sheet.py ~/Downloads/policial.png   # 6 quadros lado a lado: correndo 1-4, gritando, agarrando
 cd mobile && npm run sprites                                        # atualiza o app
 ```
+
+O fogo do SLAM (`src/assets/sprites/fx/`) sai de `python3 scripts/make-fx-sprites.py`. O script usa o algoritmo do fogo do Doom (versão de PlayStation) com semente fixa, então gera sempre os mesmos quadros. Depois de mudar, rode `npm run sprites` dentro de `mobile/`.
 
 ## 📊 Performance
 

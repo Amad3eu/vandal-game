@@ -235,17 +235,16 @@
 }
 
 /* Touch screens show on-screen buttons instead of the keyboard reminder. */
-@media (hover: none) and (pointer: coarse) {
-  .controls-hint {
-    display: none;
-  }
+.touch-ui .controls-hint {
+  display: none;
 }
 
 /* ---- Grind combo (Jet Set Radio) ---- */
 .grind-combo {
   position: absolute;
   top: max(20px, env(safe-area-inset-top));
-  left: max(20px, env(safe-area-inset-left));
+  /* right of the route map */
+  left: calc(max(14px, env(safe-area-inset-left)) + 118px);
   z-index: 6;
   display: flex;
   align-items: baseline;
@@ -327,25 +326,10 @@
   }
 }
 
-@media (max-width: 1024px) {
-  .game-container {
-    max-width: none;
-    height: 100vh;
-  }
-}
-
 @media (max-width: 768px) {
-  .game-container {
-    max-width: none;
-    height: 100vh;
-  }
-
   .controls-hint {
     bottom: 96px;
     max-width: calc(100% - 32px);
     font-size: 0.78rem;
   }
-
-
-
 }

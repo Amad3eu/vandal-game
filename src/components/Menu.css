@@ -21,19 +21,25 @@
   pointer-events: none;
 }
 
+/* 16% wider than the screen and always covering it (any aspect ratio), drifting sideways by
+   that extra width, so no edge of the picture ever shows. */
 .title-city {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 116%;
   background-repeat: no-repeat;
-  background-size: auto 112%;
-  background-position: 0% 70%;
+  background-size: cover;
+  background-position: center 70%;
   image-rendering: pixelated;
   animation: cityDrift 70s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 @keyframes cityDrift {
   to {
-    background-position: 100% 70%;
+    transform: translateX(-13.79%); /* 16 / 116: the right edge reaches the screen's edge */
   }
 }
 
@@ -358,6 +364,158 @@
   font-weight: 600;
 }
 
+.result-online {
+  margin-top: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--spray-yellow);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+}
+
+.result-online.is-refused {
+  color: #ffb4b4;
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+/* ---- leaderboard panel ---- */
+.board-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.board-tabs button {
+  flex: 1;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.board-tabs button.active {
+  background: var(--ink);
+  color: var(--spray-yellow);
+}
+
+.board-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.result-distance {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.result-online.is-local {
+  background: var(--night-2);
+  color: #fff;
+}
+
+.leaderboard-mode {
+  margin-bottom: 12px;
+  color: var(--muted-ink);
+  font-size: 0.9rem;
+}
+
+.leaderboard-empty {
+  padding: 24px 0;
+  text-align: center;
+  font-family: var(--font-display);
+}
+
+.leaderboard-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+}
+
+.leaderboard-list li {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.leaderboard-list li:nth-child(1) {
+  background: var(--spray-yellow);
+}
+
+.leaderboard-list li.is-me {
+  background: var(--spray-pink);
+  color: #fff;
+}
+
+.leaderboard-rank {
+  font-family: var(--font-pixel);
+  font-weight: 700;
+}
+
+.leaderboard-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-score {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.nickname-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 2px dashed rgba(20, 15, 31, 0.25);
+}
+
+.nickname-form label {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+}
+
+.nickname-row {
+  display: flex;
+  gap: 8px;
+}
+
+.nickname-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.nickname-error {
+  color: #b42318;
+  font-weight: 600;
+}
+
 /* ---- keyboard hints ---- */
 .title-hints {
   position: fixed;
@@ -509,15 +667,13 @@
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
-  .controls-list li.only-touch {
-    display: flex;
-  }
+.touch-ui .controls-list li.only-touch {
+  display: flex;
+}
 
-  .controls-list li.only-keyboard,
-  .title-hints {
-    display: none;
-  }
+.touch-ui .controls-list li.only-keyboard,
+.touch-ui .title-hints {
+  display: none;
 }
 
 /* ---- phones and narrow windows ---- */

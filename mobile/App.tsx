@@ -7,10 +7,12 @@ import { useFonts } from 'expo-font'
 import { Bungee_400Regular } from '@expo-google-fonts/bungee'
 import { SedgwickAveDisplay_400Regular } from '@expo-google-fonts/sedgwick-ave-display'
 import { Silkscreen_400Regular } from '@expo-google-fonts/silkscreen'
-import { CONTINUES_PER_CHECKPOINT, checkpointKey, type Checkpoint, type GameMode } from './src/shared'
+import { CONTINUES_PER_CHECKPOINT, addLocalScore, checkpointKey, type Checkpoint, type GameMode, type LocalScore } from './src/shared'
 import {
   DEFAULT_PROGRESS,
+  loadLocalBoard,
   loadProgress,
+  saveLocalBoard,
   saveHighScore,
   saveMode,
   saveMusic,
@@ -19,13 +21,14 @@ import {
 } from './src/storage'
 import { SOUNDTRACK } from './src/sprites'
 import { UI } from './src/theme'
-import GameScreen from './src/screens/GameScreen'
+import GameScreen, { type RunResult } from './src/screens/GameScreen'
 import MenuScreen from './src/screens/MenuScreen'
 
 export default function App() {
   const [progress, setProgress] = useState<SavedProgress | null>(null)
   const [screen, setScreen] = useState<'menu' | 'game'>('menu')
   const [lastScore, setLastScore] = useState<number | null>(null)
+  const [lastDistance, setLastDistance] = useState(0)
   const [newRecord, setNewRecord] = useState(false)
   // Same fonts as the web's title screen; if loading fails the system font is used.
   const [fontsLoaded, fontError] = useFonts({ Bungee_400Regular, SedgwickAveDisplay_400Regular, Silkscreen_400Regular })
@@ -35,6 +38,9 @@ export default function App() {
   const [lastCheckpoint, setLastCheckpoint] = useState<Checkpoint | null>(null)
   // Second chances already used from a flag (see CONTINUES_PER_CHECKPOINT, same rule as the web).
   const [continues, setContinues] = useState({ key: '', used: 0 })
+  // Best runs on this device and the last run's place among them.
+  const [localBoard, setLocalBoard] = useState<LocalScore[]>([])
+  const [localRank, setLocalRank] = useState<number | null>(null)
   const [runCheckpoint, setRunCheckpoint] = useState<Checkpoint | null>(null)
   const progressRef = useRef(progress)
   progressRef.current = progress
@@ -44,6 +50,7 @@ export default function App() {
     loadProgress()
       .then(setProgress)
       .catch(() => setProgress(DEFAULT_PROGRESS))
+    loadLocalBoard().then(setLocalBoard)
   }, [])
 
   // Like the web version: the track loops from the start of each run and stops in the menu.
@@ -78,14 +85,21 @@ export default function App() {
   }
 
   // Each mode keeps its own record, as on the web.
-  const handleGameOver = (score: number, checkpoint: Checkpoint | null) => {
+  const handleGameOver = ({ score, checkpoint, phase, coins, distance }: RunResult) => {
     const current = progressRef.current
+    if (current) {
+      const local = addLocalScore(localBoard, { mode: current.mode, score, phase, coins, distance, continued: runCheckpoint !== null, date: Date.now() })
+      setLocalBoard(local.board)
+      setLocalRank(local.rank)
+      saveLocalBoard(local.board)
+    }
     setNewRecord(Boolean(current && score > current.highScores[current.mode]))
     if (current && score > current.highScores[current.mode]) {
       update({ highScores: { ...current.highScores, [current.mode]: score } })
       saveHighScore(current.mode, score)
     }
     setLastScore(score)
+    setLastDistance(distance)
     const exhausted = checkpoint !== null && checkpointKey(checkpoint) === continues.key && continues.used >= CONTINUES_PER_CHECKPOINT
     setLastCheckpoint(exhausted ? null : checkpoint)
     setScreen('menu')
@@ -129,7 +143,10 @@ export default function App() {
         <MenuScreen
           progress={progress}
           lastScore={lastScore}
+          distance={lastDistance}
           newRecord={newRecord}
+          localBoard={localBoard}
+          localRank={localRank}
           checkpoint={lastCheckpoint}
           onModeChange={handleModeChange}
           onMusicChange={handleMusicChange}

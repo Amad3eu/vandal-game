@@ -1,22 +1,21 @@
-/* On-screen buttons only exist on touch screens; with a mouse/keyboard they stay hidden. */
+/* On-screen buttons only exist on touch screens (touch-ui: see src/touchUi.ts); with a
+   mouse/keyboard they stay hidden. */
 .touch-controls {
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
-  .touch-controls {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
-      max(16px, env(safe-area-inset-left));
-    pointer-events: none; /* taps between the buttons still reach the game (tap to jump) */
-  }
+.touch-ui .touch-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  pointer-events: none; /* taps between the buttons still reach the game (tap to jump) */
 }
 
 .touch-cluster {

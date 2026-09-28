@@ -1,13 +1,45 @@
+import type { ReactNode } from 'react'
 import { Image, StyleSheet, Text, View } from 'react-native'
-import type { GameView } from '../shared'
+import { SLAM_MS, SLAM_SHAKE_UNTIL, type GameView, type Obstacle } from '../shared'
 import { DAY_BACKGROUND, NIGHT_BACKGROUND } from '../sprites'
 import { COLORS, FONTS, UI } from '../theme'
 import ChaserSprite, { CaughtCop } from './ChaserSprite'
 import ObstacleSprite from './ObstacleSprite'
 import PlayerSprite from './PlayerSprite'
+import SlamEffect from './SlamEffect'
 
 /** Night falls over this long after the phase 2 checkpoint (the web uses a CSS transition). */
 const NIGHT_FADE_MS = 1200
+
+/** The street shaking on a skate SLAM (the web's slamShake keyframes, 0.3s). */
+const SHAKE: [number, number][] = [[0, 0], [-5, 3], [4, -2], [-3, 1], [0, 0]]
+function shakeAt(ms: number): [number, number] {
+  const at = Math.min(1, ms / 300) * (SHAKE.length - 1)
+  const i = Math.min(SHAKE.length - 2, Math.floor(at))
+  const t = at - i
+  return [SHAKE[i][0] + (SHAKE[i + 1][0] - SHAKE[i][0]) * t, SHAKE[i][1] + (SHAKE[i + 1][1] - SHAKE[i][1]) * t]
+}
+
+/** Obstacles knocked by a SLAM fly off spinning (the web's knockedAway keyframes, 0.75s). */
+function Knocked({ obstacle, elapsedMs, children }: { obstacle: Obstacle; elapsedMs: number; children: ReactNode }) {
+  const t = Math.min(1, elapsedMs / 750)
+  const u = 1 - (1 - t) * (1 - t)
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: obstacle.x,
+        top: obstacle.y,
+        width: obstacle.width,
+        height: obstacle.height,
+        opacity: 1 - u,
+        transform: [{ translateX: 160 * u }, { translateY: -260 * u }, { rotate: `${540 * u}deg` }, { scale: 1 - 0.4 * u }],
+      }}
+    >
+      {children}
+    </View>
+  )
+}
 
 interface WorldProps {
   view: GameView
@@ -27,6 +59,8 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
   const { player } = view
   const night = view.phase >= 2
   const blend = view.phase === 2 ? Math.min(1, view.phaseMs / NIGHT_FADE_MS) : night ? 1 : 0
+  const slamMs = view.slamProgress === null ? null : view.slamProgress * SLAM_MS
+  const [shakeX, shakeY] = view.slamProgress !== null && view.slamProgress < SLAM_SHAKE_UNTIL ? shakeAt(slamMs ?? 0) : [0, 0]
 
   return (
     <View
@@ -37,7 +71,7 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
       <Image source={DAY_BACKGROUND} resizeMode="cover" style={[styles.background, { width, height, opacity: 1 - blend }]} />
       <Image source={NIGHT_BACKGROUND} resizeMode="cover" style={[styles.background, { width, height, opacity: blend }]} />
       {/* Floor, obstacles and player move down together when the camera follows the player up. */}
-      <View style={[styles.scene, { width, height, transform: [{ translateY: view.cameraY }] }]}>
+      <View style={[styles.scene, { width, height, transform: [{ translateX: shakeX }, { translateY: view.cameraY + shakeY }] }]}>
         <View
           style={[
             styles.ground,
@@ -49,9 +83,15 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
             },
           ]}
         />
-        {view.obstacles.map((obstacle) => (
-          <ObstacleSprite key={obstacle.id} obstacle={obstacle} clock={clock} tagProgress={view.tagProgress} />
-        ))}
+        {view.obstacles.map((obstacle) =>
+          obstacle.knocked ? (
+            <Knocked key={obstacle.id} obstacle={obstacle} elapsedMs={slamMs ?? 750}>
+              <ObstacleSprite obstacle={{ ...obstacle, x: 0, y: 0 }} clock={clock} tagProgress={view.tagProgress} />
+            </Knocked>
+          ) : (
+            <ObstacleSprite key={obstacle.id} obstacle={obstacle} clock={clock} tagProgress={view.tagProgress} />
+          )
+        )}
         {view.chaser && caughtProgress === null && <ChaserSprite chaser={view.chaser} groundLevel={groundLevel} clock={clock} />}
         {caughtProgress !== null && <CaughtCop playerX={player.x} groundLevel={groundLevel} progress={caughtProgress} />}
         {view.introStage === 'tag' && (
@@ -75,7 +115,13 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
           facing={facing}
           wallCling={view.wallClingSide !== 0}
           dashing={view.dashing}
+          hasSkate={view.skateMs > 0}
+          slamProgress={view.slamProgress}
+          recovering={view.recovering}
         />
+        {view.slamProgress !== null && (
+          <SlamEffect progress={view.slamProgress} x={player.x} y={player.y} width={player.width} height={player.height} />
+        )}
       </View>
     </View>
   )

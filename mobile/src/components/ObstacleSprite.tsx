@@ -166,8 +166,21 @@ export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: 
       )
     }
 
+    case 'skate': {
+      // Skate pickup: a board floating over the street with a pulsing ring (the web's .obstacle-skate glows).
+      const wheel = { position: 'absolute', top: '56%', width: o.width * 0.18, height: o.width * 0.18, borderRadius: 999, backgroundColor: '#1f1f1f' } as const
+      return (
+        <View testID="skate-pickup" style={at(o.x, o.y - 3 + 3 * Math.sin(clock / 150), o.width, o.height)}>
+          <View style={{ position: 'absolute', left: -8, right: -8, top: -6, bottom: -8, borderRadius: 999, borderWidth: 2, borderColor: '#ffd23f', opacity: 0.35 + 0.55 * (0.5 + 0.5 * Math.sin(clock / 143)) }} />
+          <View style={{ position: 'absolute', left: '7%', width: '86%', top: '24%', height: '30%', borderRadius: 999, borderWidth: 2, borderColor: '#1f1f1f', backgroundColor: '#f48c28' }} />
+          <View style={[wheel, { left: '20%' }]} />
+          <View style={[wheel, { right: '20%' }]} />
+        </View>
+      )
+    }
+
     default:
-      // skate, cactus and duck-bar are never spawned by the engine today.
+      // cactus and duck-bar are never spawned by the engine today.
       return null
   }
 }

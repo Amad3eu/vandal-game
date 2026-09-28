@@ -30,7 +30,7 @@ export const TICK_MS = FRAME_TIME
 /** After a hiccup (tab switch, slow phone) at most this much time is caught up at once. */
 export const MAX_CATCH_UP_MS = 100
 /** Rules version, saved in run logs: bump it when a change alters how a run plays out. */
-export const ENGINE_VERSION = 1
+export const ENGINE_VERSION = 2 // 2: skate pickups spawn again and a crash with one is a SLAM
 /** The floor starts at 76% of the world height (matches the 24% ground strip of the web view). */
 export const GROUND_RATIO = 0.76
 
@@ -44,7 +44,14 @@ export const JUMP_BUFFER_MS = 130
 export const COYOTE_TIME_MS = 90
 export const SKATE_DURATION_MS = 15000
 export const SKATE_SPEED_MULTIPLIER = 1.28
-export const SKATE_FLICKER_MS = 420
+// --- Skate: a rare pickup; while it lasts, a crash doesn't end the run: SLAM! ---
+export const SKATE_SPAWN_SCORE = 300
+export const SKATE_SPAWN_CHANCE = 0.07
+export const SLAM_MS = 1100 // the bail: fire, down on the ground, getting up
+export const SLAM_SLOWDOWN = 0.35 // scroll speed while the player is down
+export const RECOVER_MS = 1600 // blinking after getting up: can't be hurt
+/** For the route map: the player (100px) is about 1.8m tall. */
+export const METERS_PER_PX = 1 / 55
 export const LIGHTNING_DURATION_MS = 3000
 export const JUMP_BOOST_DURATION_MS = 4500
 export const JUMP_BOOST_MULTIPLIER = 1.2
