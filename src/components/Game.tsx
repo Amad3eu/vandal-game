@@ -7,6 +7,9 @@ import GraffitiDialog, { ArtistPortrait, artistStyle } from './GraffitiDialog'
 import DrawingCanvas from './DrawingCanvas'
 import DrawingConfirmation from './DrawingConfirmation'
 import Chaser, { CaughtScene } from './Chaser'
+import RouteMap from './RouteMap'
+import SlamEffect from './SlamEffect'
+import { SLAM_SHAKE_UNTIL } from '../data/slam'
 import Blackbook from './Blackbook'
 import { useGameInput } from '../hooks/useGameInput'
 import { ARTIST_SIGNATURES } from '../data/artistSignatures'
@@ -26,7 +29,8 @@ import {
   resumeGame,
   type GameState,
 } from '../game/engine'
-import { Checkpoint, GameMode, GraffitiArtist, GraffitiArt } from '../types/game'
+import { Checkpoint, GameMode, GamePhase, GraffitiArtist, GraffitiArt } from '../types/game'
+import type { RunLog } from '../game/engine'
 import type { MusicOption } from '../App'
 import dayBackground from '../assets/background/9.png'
 import nightBackground from '../assets/background/7.png'
@@ -46,16 +50,29 @@ function readTotalCoins() {
   return saved ? parseInt(saved, 10) : 0
 }
 
+/** How a run ended, handed to the app for the record, the scoreboards and the continue offer. */
+export interface RunResult {
+  score: number
+  checkpoint: Checkpoint | null
+  phase: GamePhase
+  coins: number
+  /** Meters run. */
+  distance: number
+  log: RunLog | null
+}
+
 interface GameProps {
   mode: GameMode
   highScore: number
   selectedMusic: MusicOption
   /** Continue from this checkpoint instead of starting from phase 1. */
   checkpoint?: Checkpoint | null
-  onGameOver: (score: number, checkpoint: Checkpoint | null) => void
+  /** Seed handed out by the leaderboard server for a ranked run (a random one otherwise). */
+  seed?: number
+  onGameOver: (result: RunResult) => void
 }
 
-export default function Game({ mode, highScore, selectedMusic, checkpoint = null, onGameOver }: GameProps) {
+export default function Game({ mode, highScore, selectedMusic, checkpoint = null, seed, onGameOver }: GameProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -72,6 +89,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
       checkpoint,
       intro: true,
       record: true,
+      seed,
     })
   }
   const engine = engineRef.current
@@ -215,8 +233,15 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
           } catch {
             // Storage full or blocked: the replay is only a bonus.
           }
-          const { score, checkpoint: reached } = event
-          window.setTimeout(() => onGameOver(score, reached), CAUGHT_MS)
+          const result: RunResult = {
+            score: event.score,
+            checkpoint: event.checkpoint,
+            phase: event.phase,
+            coins: event.coins,
+            distance: event.distance,
+            log: engine.log,
+          }
+          window.setTimeout(() => onGameOver(result), CAUGHT_MS)
           return
         }
       }
@@ -269,8 +294,8 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
   const modeInfo = GAME_MODES[mode]
   // Gripping a wall turns the sprite away from it; otherwise it faces the walking direction.
   const visualFacing = wallClingSide !== 0 ? (-wallClingSide as 1 | -1) : player.facing ?? 1
-  // Standing still while tagging the wall in the intro.
-  const isMoving = mode === 'runner' ? view.introStage === null : Math.abs(player.velocityX ?? 0) > 0.3
+  // Standing still while tagging the wall in the intro, and while down after a skate SLAM.
+  const isMoving = view.slamProgress === null && (mode === 'runner' ? view.introStage === null : Math.abs(player.velocityX ?? 0) > 0.3)
 
   return (
     <div className={`game-wrapper ${isNight ? 'is-night' : ''} phase-${phase}`}>
@@ -300,7 +325,10 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
           </div>
 
           {/* Floor, obstacles and player move down together when the camera follows the player up. */}
-          <div className="game-scene" style={{ transform: `translateY(${view.cameraY}px)` }}>
+          <div
+            className={`game-scene ${view.slamProgress !== null && view.slamProgress < SLAM_SHAKE_UNTIL ? 'is-slammed' : ''}`}
+            style={{ transform: `translateY(${view.cameraY}px)` }}
+          >
             <div className="scene-ground" />
             {view.chaser && !caught && <Chaser chaser={view.chaser} groundLevel={engine.config.groundLevel} />}
             {caught && <CaughtScene playerX={player.x} groundLevel={engine.config.groundLevel} />}
@@ -309,13 +337,17 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
             <Dinosaur
               state={player}
               hasSkate={view.skateMs > 0}
-              skateFlickering={view.skateFlickering}
+              recovering={view.recovering}
+              slamProgress={view.slamProgress}
               isDashing={view.dashing}
               isWallClinging={wallClingSide !== 0}
               facing={visualFacing}
               isMoving={isMoving}
             />
             <Obstacles obstacles={view.obstacles} tagProgress={view.tagProgress} />
+            {view.slamProgress !== null && (
+              <SlamEffect progress={view.slamProgress} x={player.x} y={player.y} width={player.width} height={player.height} />
+            )}
           </div>
         </div>
 
@@ -330,6 +362,8 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
             </span>
           </div>
         )}
+
+        <RouteMap score={score} phase={phase} distance={view.distance} />
 
         <TouchControls mode={mode} onPress={press} onRelease={release} />
 

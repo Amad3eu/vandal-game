@@ -1,0 +1,136 @@
+/* Route map: a marker-drawn GPS track in the top-left corner (see RouteMap.tsx). */
+.route-map {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+  z-index: 5;
+  width: 104px;
+  height: 156px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.route-plate {
+  fill: rgba(20, 15, 31, 0.28);
+  stroke: rgba(20, 15, 31, 0.35);
+  stroke-width: 1;
+}
+
+.route-map polyline {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route-shadow {
+  stroke: var(--ink);
+  stroke-width: 9;
+  opacity: 0.55;
+}
+
+.route-outline {
+  stroke: var(--ink);
+  stroke-width: 9;
+}
+
+.route-ahead {
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 4;
+  stroke-dasharray: 5 4;
+}
+
+.route-done {
+  stroke: #ff9ad5;
+  stroke-width: 5;
+}
+
+.route-map text {
+  font-family: var(--font-display);
+  fill: #ff9ad5;
+  stroke: var(--ink);
+  stroke-width: 3px;
+  paint-order: stroke fill;
+  stroke-linejoin: round;
+}
+
+.route-start {
+  font-size: 9px;
+}
+
+.route-distance {
+  font-size: 15px;
+}
+
+.route-flag line {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.route-flag polygon {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.route-flag text {
+  font-size: 7.5px;
+}
+
+.route-flag.is-reached polygon {
+  fill: var(--spray-green);
+}
+
+.route-flag.is-due polygon,
+.route-flag.is-due text {
+  animation: routeDue 0.6s steps(2) infinite;
+}
+
+.route-flag.is-due text {
+  fill: var(--spray-yellow);
+}
+
+@keyframes routeDue {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.route-player {
+  fill: var(--spray-yellow);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.route-pulse {
+  fill: rgba(255, 210, 63, 0.35);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: routePulse 1.2s ease-out infinite;
+}
+
+@keyframes routePulse {
+  from {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Phones and short windows: smaller, still readable. */
+@media (max-width: 760px), (max-height: 520px) {
+  .route-map {
+    width: 70px;
+    height: 105px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-pulse,
+  .route-flag.is-due polygon,
+  .route-flag.is-due text {
+    animation: none;
+  }
+}

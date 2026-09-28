@@ -139,35 +139,6 @@
   }
 }
 
-/* Skate flicker animation when damaged */
-.dinosaur.skate-flickering {
-  animation: skateGlitch 0.42s steps(2, end) forwards;
-}
-
-@keyframes skateGlitch {
-  0%, 100% {
-    opacity: 1;
-    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
-    transform: translateX(0);
-  }
-  15% {
-    opacity: 0.25;
-    transform: translateX(-3px) skewX(-6deg);
-  }
-  35% {
-    opacity: 1;
-    transform: translateX(2px) skewX(5deg);
-  }
-  55% {
-    opacity: 0.35;
-    transform: translateX(-2px) skewX(-4deg);
-  }
-  75% {
-    opacity: 1;
-    transform: translateX(1px) skewX(3deg);
-  }
-}
-
 /* ---- Dash / esquiva (Hollow Knight) ---- */
 .dinosaur.dashing {
   filter: drop-shadow(0 0 10px rgba(80, 220, 255, 0.85)) brightness(1.12);

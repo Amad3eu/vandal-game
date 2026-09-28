@@ -1,6 +1,7 @@
 import { DinosaurState } from '../types/game'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { slamPose } from '../data/slam'
 import walkSprite1 from '../assets/sprites/walk/walk-1.png'
 import walkSprite2 from '../assets/sprites/walk/walk-2.png'
 import walkSprite3 from '../assets/sprites/walk/walk-3.png'
@@ -26,7 +27,10 @@ import './Dinosaur.css'
 interface DinosaurProps {
   state: DinosaurState
   hasSkate?: boolean
-  skateFlickering?: boolean
+  /** Blinking after a skate SLAM (can't be hurt). */
+  recovering?: boolean
+  /** 0 → 1 while down after a skate SLAM: falls back, lies there, gets up with a hop. */
+  slamProgress?: number | null
   isDashing?: boolean
   isWallClinging?: boolean
   facing?: 1 | -1
@@ -34,10 +38,17 @@ interface DinosaurProps {
   isMoving?: boolean
 }
 
+/** The bail (see src/data/slam.ts): falls on the back, lies on the street, gets up with a small hop. */
+function slamTransform(progress: number) {
+  const { rotate, drop } = slamPose(progress)
+  return `translateY(${drop * 100}%) rotate(${rotate}deg)`
+}
+
 export default function Dinosaur({
   state,
   hasSkate = false,
-  skateFlickering = false,
+  recovering = false,
+  slamProgress = null,
   isDashing = false,
   isWallClinging = false,
   facing = 1,
@@ -148,11 +159,12 @@ export default function Dinosaur({
     top: `${state.y + visualOffset}px`,
     width: `${state.width}px`,
     height: `${state.height}px`,
+    ...(slamProgress !== null ? { transform: slamTransform(slamProgress), transition: 'none' } : {}),
   } as CSSProperties
 
   return (
     <div
-      className={`dinosaur ${isJumping ? 'jumping' : 'running'} ${isDucking ? 'ducking' : ''} ${hasSkate ? 'has-skate' : ''} ${skateFlickering ? 'skate-flickering' : ''} ${isDashing ? 'dashing' : ''} ${isWallClinging ? 'wall-clinging' : ''} ${facing === -1 ? 'facing-left' : ''} ${isMoving ? '' : 'idle'}`}
+      className={`dinosaur ${isJumping ? 'jumping' : 'running'} ${isDucking ? 'ducking' : ''} ${hasSkate ? 'has-skate' : ''} ${recovering ? 'recovering' : ''} ${isDashing ? 'dashing' : ''} ${isWallClinging ? 'wall-clinging' : ''} ${facing === -1 ? 'facing-left' : ''} ${isMoving ? '' : 'idle'}`}
       style={dinosaurStyle}
     >
       {isDashing && (

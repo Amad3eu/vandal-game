@@ -117,7 +117,7 @@ export default function Obstacles({ obstacles, tagProgress = 1 }: ObstaclesProps
       {obstacles.map((obstacle) => (
         <div
           key={obstacle.id}
-          className={`obstacle obstacle-${obstacle.type} ${obstacle.reached ? "reached" : ""}`}
+          className={`obstacle obstacle-${obstacle.type} ${obstacle.reached ? "reached" : ""} ${obstacle.knocked ? "knocked" : ""}`}
           style={{
             left: `${obstacle.x}px`,
             top: `${obstacle.type === "spray" ? obstacle.y - 18 : obstacle.y}px`,
