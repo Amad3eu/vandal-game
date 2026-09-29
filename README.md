@@ -253,6 +253,8 @@ src/online/                    # Placar global: servidor próprio, Supabase ou p
 src/data/scoreBoard.ts         # Placar deste aparelho (melhores partidas por modo)
 server/leaderboard/            # Servidor do placar global (Node + Postgres), feito para o Railway (railway.json)
 src/admin/                     # Painel admin (/admin): roadmap, moderação do placar, grafiteiros e DJs (shadcn/ui)
+tests/                         # Testes: Vitest (engine, servidor) e Playwright (tests/e2e)
+.github/workflows/ci.yml       # Testes automáticos em todo PR
 supabase/migrations/           # Banco do placar: tabelas, RLS e funções SQL
 supabase/functions/            # start-run (semente) e submit-run (replay e placar), em Deno
 scripts/make-intro-sprites.py  # Gera os sprites provisórios do policial e do muro pichado
@@ -452,6 +454,36 @@ cd mobile && npm run sprites                                        # atualiza o
 ```
 
 O fogo do SLAM (`src/assets/sprites/fx/`) sai de `python3 scripts/make-fx-sprites.py`. O script usa o algoritmo do fogo do Doom (versão de PlayStation) com semente fixa, então gera sempre os mesmos quadros. Depois de mudar, rode `npm run sprites` dentro de `mobile/`.
+
+## ✅ Testes
+
+Todo PR é testado sozinho no GitHub (aba **Actions**, workflow `CI`). Se algo quebrar, o PR fica com um ✗ vermelho. O workflow roda:
+
+- os tipos do site, dos testes e do app;
+- o build do site e o do servidor do placar;
+- as regras do jogo e o servidor do placar, com um Postgres de verdade;
+- o site num navegador: celulares, um navegador que finge ter mouse (como o da Samsung), uma partida inteira e o painel admin.
+
+No seu computador:
+
+```bash
+npm test                          # regras do jogo e dados (os testes do servidor pulam sem banco)
+npx playwright install chromium   # só na primeira vez
+npm run test:e2e                  # o site no navegador (monta o site e abre em http://127.0.0.1:4173)
+```
+
+Para incluir os testes do servidor, suba um Postgres de teste e passe o endereço dele. O nome do banco precisa ter "test", porque os testes apagam as tabelas:
+
+```bash
+docker run -d --name vandal-test-db -e POSTGRES_PASSWORD=test -e POSTGRES_DB=vandal_test -p 55432:5432 postgres:16-alpine
+TEST_DATABASE_URL=postgres://postgres:test@localhost:55432/vandal_test npm test
+```
+
+- `tests/*.test.ts` (Vitest): engine, conferência das partidas, dados compartilhados, servidor do placar e o cliente do site.
+- `tests/e2e/` (Playwright): botões de toque, navegador tipo Samsung, uma partida e o painel admin com um servidor simulado.
+- Um robô (`tests/helpers/bot.ts`) joga partidas de verdade para os testes da engine e do servidor.
+
+Para o GitHub só aceitar merge com os testes passando: **Settings → Branches → Add branch ruleset** na `main`, com "Require status checks to pass" marcando `Site e servidor` e `App Expo`.
 
 ## 📊 Performance
 

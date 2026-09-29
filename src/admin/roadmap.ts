@@ -124,12 +124,14 @@ export const PHASES: RoadmapPhase[] = [
         title: 'Painel admin: roadmap, moderação do placar e registro',
         status: 'feito',
         detail: 'Renomear, esconder jogadores e apagar partidas; cada ação fica registrada com o nome do admin.',
+        pr: 13,
         date: '2026-09-28',
       },
       {
         title: 'Cadastro de grafiteiros e DJs reais, com assinatura',
         status: 'feito',
         detail: 'Grafite, DJ, MC e breaking, com fase e pontuação mínima. O jogo passa a usar na próxima etapa.',
+        pr: 13,
         date: '2026-09-28',
       },
       {
@@ -157,6 +159,23 @@ export const PHASES: RoadmapPhase[] = [
     ],
   },
   {
+    id: 'qualidade',
+    title: 'Qualidade',
+    goal: 'Mexer no jogo sem medo de quebrar',
+    items: [
+      {
+        title: 'Testes automáticos em todo PR (GitHub Actions)',
+        status: 'feito',
+        detail: 'Regras do jogo, servidor do placar com Postgres, o site no navegador (inclusive celulares) e os tipos do app.',
+        pr: 14,
+        date: '2026-09-28',
+      },
+      { title: 'Revisão de código por IA antes de cada PR', status: 'feito', detail: 'Feita localmente; nada é publicado no GitHub.', pr: 14, date: '2026-09-28' },
+      { title: 'Proteger a main: só aceitar PR com os testes passando', status: 'proximo', detail: 'Configuração no GitHub (Settings → Branches).' },
+      { title: 'Testar o app no celular automaticamente, além dos tipos', status: 'ideia' },
+    ],
+  },
+  {
     id: 'conteudo',
     title: 'Conteúdo',
     goal: 'Mais cultura hip-hop dentro do jogo',
@@ -170,6 +189,12 @@ export const PHASES: RoadmapPhase[] = [
 ]
 
 export const DECISIONS: Decision[] = [
+  {
+    date: '2026-09-28',
+    title: 'Testes automáticos e revisão antes de cada PR',
+    choice: 'O GitHub roda os testes em todo PR; cada mudança passa por uma revisão de código por IA antes de virar PR.',
+    why: 'Com uma pessoa só desenvolvendo, é o que faz o papel do segundo par de olhos.',
+  },
   {
     date: '2026-09-28',
     title: 'Painel admin separado do jogo',
