@@ -30,3 +30,9 @@ vite.config.d.ts
 .env
 .env.local
 .env.*.local
+
+# Playwright (npm run test:e2e)
+dist-e2e
+test-results
+playwright-report
+blob-report
