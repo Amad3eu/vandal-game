@@ -107,6 +107,43 @@ export function createAdminStore(pool: Pool) {
       return rows.map(toArtist)
     },
 
+    /** The active artists for the game, without the signature images (those have their own address). */
+    async publicArtists() {
+      const { rows } = await pool.query(
+        `select id, name, kind, city, bio, instagram, color, min_score, phase, signature is not null as has_signature, updated_at
+         from artists where active order by phase, min_score, name`
+      )
+      return rows.map((row) => ({
+        id: row.id as string,
+        name: row.name as string,
+        kind: row.kind as ArtistKind,
+        city: row.city as string | null,
+        bio: row.bio as string | null,
+        instagram: row.instagram as string | null,
+        color: row.color as string,
+        minScore: row.min_score as number,
+        phase: row.phase as 1 | 2 | 3,
+        hasSignature: row.has_signature as boolean,
+        /** Changes when the artist is edited, so a new signature isn't hidden by a cache. */
+        version: new Date(row.updated_at).getTime().toString(36),
+      }))
+    },
+
+    /** Unlock rules of these artists (the ones that exist), to check the signatures of a run. */
+    async artistRules(ids: string[]) {
+      const rules = new Map<string, { phase: number; minScore: number }>()
+      if (ids.length === 0) return rules
+      const { rows } = await pool.query('select id, phase, min_score from artists where id = any($1::uuid[])', [ids])
+      for (const row of rows) rules.set(row.id, { phase: row.phase, minScore: row.min_score })
+      return rules
+    },
+
+    /** An active artist's signature image as a data URL, or null. */
+    async artistSignature(id: string) {
+      const { rows } = await pool.query('select signature from artists where id = $1 and active', [id])
+      return (rows[0]?.signature as string | null | undefined) ?? null
+    },
+
     async createArtist(input: ArtistInput): Promise<Artist> {
       const { rows } = await pool.query(
         `insert into artists (name, kind, city, bio, instagram, color, signature, min_score, phase, active)
