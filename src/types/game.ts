@@ -1,10 +1,20 @@
+/** The street artists that come with the game (the engine spawns encounters with one of them). */
 export type GraffitiArtist = 'remo' | 'pixo' | 'nina'
+
+/**
+ * Who a signature belongs to: one of the game's own artists, or a real artist, DJ, MC or
+ * b-boy/b-girl registered in the admin page (its id on the leaderboard server, a UUID).
+ */
+export type ArtistId = string
 
 export type ArtworkType = 'artist-signature' | 'my-signature'
 
 export interface GraffitiArt {
   id: string
-  artist: GraffitiArtist
+  artist: ArtistId
+  /** Name and color of a real artist, so the blackbook shows them even offline (the game's own come from ARTIST_INFO). */
+  artistName?: string
+  artistColor?: string
   type: ArtworkType // 'artist-signature' = assinatura coletada, 'my-signature' = minha assinatura
   imageData: string // base64 encoded drawing or signature
   timestamp: number
@@ -57,7 +67,7 @@ export interface Checkpoint {
   /** Scroll speed at the flag, so the continued run isn't slower than where it stopped. */
   speed: number
   coins: number
-  signatures: GraffitiArtist[]
+  signatures: ArtistId[]
 }
 
 /** 'runner' = estilo dino do Google (o cenário vem até você); 'free' = andar livre com WASD. */

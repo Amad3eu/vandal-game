@@ -35,7 +35,17 @@ export const LIMITS = {
 export type SubmissionResult = { ok: true; score: number; endTick: number } | { ok: false; reason: string }
 
 const EVENT_TYPES = new Set(['held', 'jump', 'jumpEnd', 'dash', 'resume', 'signature', 'resize'])
-const ARTISTS = new Set(['remo', 'pixo', 'nina'])
+/** A signature's artist: one of the game's own, or a real one registered on the server (a UUID). */
+const GAME_ARTISTS = new Set(['remo', 'pixo', 'nina'])
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const isUuid = (value: unknown): value is string => typeof value === 'string' && UUID.test(value)
+const isArtistId = (value: unknown) => typeof value === 'string' && (GAME_ARTISTS.has(value) || isUuid(value))
+
+/** When a real artist registered on the server unlocks: from this phase and this score. */
+export interface ArtistRule {
+  phase: number
+  minScore: number
+}
 
 const isInt = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
@@ -66,13 +76,23 @@ export function isRunLog(value: unknown): value is RunLog {
       const held = event.held as Record<string, unknown> | undefined
       if (!held || typeof held.left !== 'boolean' || typeof held.right !== 'boolean' || typeof held.down !== 'boolean') return false
     }
-    if (event.type === 'signature' && !ARTISTS.has(event.artist as string)) return false
+    if (event.type === 'signature' && !isArtistId(event.artist)) return false
     if (event.type === 'resize' && !isWorldSize(event.width, event.height)) return false
   }
   return true
 }
 
-export function checkSubmission(log: unknown, seed: IssuedSeed | null, userId: string, now = Date.now()): SubmissionResult {
+/**
+ * `artists` has the rules of the real artists signed in the log (the server looks them up); a
+ * signature must be one of the game's own artists or one of these, signed once it was unlocked.
+ */
+export function checkSubmission(
+  log: unknown,
+  seed: IssuedSeed | null,
+  userId: string,
+  now = Date.now(),
+  artists: ReadonlyMap<string, ArtistRule> = new Map()
+): SubmissionResult {
   const fail = (reason: string): SubmissionResult => ({ ok: false, reason })
   if (!seed) return fail('seed-unknown')
   if (seed.user_id !== userId) return fail('seed-not-yours')
@@ -91,7 +111,17 @@ export function checkSubmission(log: unknown, seed: IssuedSeed | null, userId: s
   // A run can't have lasted longer than the time since its seed was handed out.
   if (endTick * TICK_MS > now - issuedAt + LIMITS.slackMs) return fail('too-fast')
 
-  const replay = verifyRun(log)
+  // Signatures: the game's own artists, or real ones registered on the server...
+  for (const event of log.events) {
+    if (event.type === 'signature' && !GAME_ARTISTS.has(event.artist) && !artists.has(event.artist)) return fail('unknown-artist')
+  }
+  // ...signed only once unlocked (the replay skips a locked one, so the score stops matching).
+  const replay = verifyRun(log, {
+    canSign: (artist, state) => {
+      const rule = artists.get(artist)
+      return !rule || (state.phase >= rule.phase && state.score >= rule.minScore)
+    },
+  })
   if (!replay.valid) return fail('replay-mismatch')
   return { ok: true, score: replay.score, endTick: replay.tick }
 }

@@ -6,7 +6,7 @@ export type HeldInput = { left: boolean; right: boolean; down: boolean }
 export type RunEvent =
   | { tick: number; type: 'held'; held: HeldInput }
   | { tick: number; type: 'jump' | 'jumpEnd' | 'dash' | 'resume' }
-  | { tick: number; type: 'signature'; artist: 'remo' | 'pixo' | 'nina' }
+  | { tick: number; type: 'signature'; artist: string }
   | { tick: number; type: 'resize'; width: number; height: number }
 
 export interface RunLog {
@@ -27,8 +27,8 @@ export declare const TICK_MS: number
 export declare const MIN_WORLD_WIDTH: number
 export declare const MIN_WORLD_HEIGHT: number
 
-export declare function replayRun(log: RunLog): { score: number; tick: number; gameOver: boolean }
-export declare function verifyRun(log: RunLog): { valid: boolean; score: number; tick: number }
+export declare function replayRun(log: RunLog, options?: { canSign?: (artist: string, state: unknown) => boolean }): { score: number; tick: number; gameOver: boolean }
+export declare function verifyRun(log: RunLog, options?: { canSign?: (artist: string, state: unknown) => boolean }): { valid: boolean; score: number; tick: number }
 
 export interface IssuedSeed {
   id: string
@@ -50,4 +50,10 @@ export declare const LIMITS: {
 }
 
 export declare function isRunLog(value: unknown): value is RunLog
-export declare function checkSubmission(log: unknown, seed: IssuedSeed | null, userId: string, now?: number): SubmissionResult
+export interface ArtistRule {
+  phase: number
+  minScore: number
+}
+
+export declare function isUuid(value: unknown): value is string
+export declare function checkSubmission(log: unknown, seed: IssuedSeed | null, userId: string, now?: number, artists?: ReadonlyMap<string, ArtistRule>): SubmissionResult

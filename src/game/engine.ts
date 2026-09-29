@@ -5,6 +5,7 @@
  * the returned events and draws getView(state).
  */
 import type {
+  ArtistId,
   Checkpoint,
   DinosaurState,
   GameConfig,
@@ -88,7 +89,7 @@ import { createClimb, createFloatingPath, createObstacle, getSpawnGap, spacingAf
 export type RunEvent =
   | { tick: number; type: 'held'; held: HeldInput }
   | { tick: number; type: 'jump' | 'jumpEnd' | 'dash' | 'resume' }
-  | { tick: number; type: 'signature'; artist: GraffitiArtist }
+  | { tick: number; type: 'signature'; artist: ArtistId }
   | { tick: number; type: 'resize'; width: number; height: number }
 
 /**
@@ -134,7 +135,7 @@ export interface GameState {
   coins: number
   totalCoins: number
   /** Artists signed in this run. */
-  signatures: GraffitiArtist[]
+  signatures: ArtistId[]
   phase: GamePhase
   /** Time since the current phase began (front ends show a banner and fade to night). */
   phaseMs: number
@@ -192,7 +193,10 @@ export interface GameState {
   /** Paused by a graffiti encounter until resumeGame. */
   paused: boolean
   gameOver: boolean
+  /** The graffiti-artist obstacle of the encounter going on (the game is paused), or null. */
   artistEncounterId: number | null
+  /** The encounter going on already gave its signature (one per encounter). */
+  encounterSigned: boolean
 }
 
 export type GameEvent =
@@ -209,7 +213,7 @@ export interface GameView {
   score: number
   coins: number
   totalCoins: number
-  signatures: GraffitiArtist[]
+  signatures: ArtistId[]
   phase: GamePhase
   phaseMs: number
   /** Draw the world (floor, obstacles, player) this much lower: the camera following the player up. */
@@ -353,6 +357,7 @@ export function createGameState({
     paused: false,
     gameOver: false,
     artistEncounterId: null,
+    encounterSigned: false,
   }
   state.nextSpawnGap = getSpawnGap(state, state.speed) * 0.5
   if (withIntro) {
@@ -504,12 +509,17 @@ export function resumeGame(state: GameState) {
   state.artistEncounterId = null
 }
 
-/** Signing an artist's blackbook scores once per artist per run; returns whether it counted. */
-export function awardSignature(state: GameState, artist: GraffitiArtist) {
-  if (state.signatures.includes(artist)) return false
+/**
+ * Signing an artist's blackbook scores once per artist per run, and only during an encounter
+ * (one signature each): a log can't add points with signatures nobody met. Returns whether it
+ * counted. Which artist the front end shows in the encounter is up to it (see src/data/encounters.ts).
+ */
+export function awardSignature(state: GameState, artist: ArtistId) {
+  if (state.artistEncounterId === null || state.encounterSigned || state.signatures.includes(artist)) return false
   logEvent(state, { tick: state.tick, type: 'signature', artist })
   state.score += GRAFFITI_SIGNATURE_SCORE
   state.signatures = [...state.signatures, artist]
+  state.encounterSigned = true
   return true
 }
 
@@ -902,6 +912,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
       if (obs.type === 'graffiti-artist' && checkCollision(player, obs)) {
         if (obs.graffitiArtist && state.artistEncounterId === null) {
           state.artistEncounterId = obs.id
+          state.encounterSigned = false
           encounteredArtist = obs.graffitiArtist
         }
         return []

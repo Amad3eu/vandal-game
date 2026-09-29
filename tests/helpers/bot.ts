@@ -7,10 +7,13 @@ export const IDLE = { left: false, right: false, down: false }
 /** Obstacles that don't end the run on contact. */
 const SAFE = new Set(['skate', 'coin', 'power-lightning', 'power-jump', 'floating-platform', 'train', 'building', 'trampoline', 'checkpoint', 'wall'])
 
-/** One frame of play; a graffiti artist encounter is closed right away, like a player would. */
-export function frame(state: GameState, input = IDLE) {
+/** One frame of play; a graffiti encounter is closed right away (after `onArtist`, e.g. to sign). */
+export function frame(state: GameState, input = IDLE, onArtist?: (state: GameState) => void) {
   const events = advanceGame(state, input, FRAME_MS)
-  if (events.some((event) => event.type === 'artist')) resumeGame(state)
+  if (events.some((event) => event.type === 'artist')) {
+    onArtist?.(state)
+    resumeGame(state)
+  }
   return events
 }
 
@@ -18,7 +21,7 @@ export function frame(state: GameState, input = IDLE) {
  * A simple player for tests: jumps over the next hazard when it gets close, then stops jumping
  * after `seconds` so the run ends. Good for runs of about a minute with a few thousand points.
  */
-export function playRun(seed: number, { mode = 'runner' as GameMode, seconds = 60 } = {}) {
+export function playRun(seed: number, { mode = 'runner' as GameMode, seconds = 60, onArtist }: { mode?: GameMode; seconds?: number; onArtist?: (state: GameState) => void } = {}) {
   const state = createGameState({ mode, width: 1280, height: 720, seed, intro: true, record: true })
   const walk = { ...IDLE, right: mode === 'free' }
   let tick = 0
@@ -38,9 +41,9 @@ export function playRun(seed: number, { mode = 'runner' as GameMode, seconds = 6
         releaseAt = tick + 14
       }
     }
-    frame(state, walk)
+    frame(state, walk, onArtist)
   }
-  for (let i = 0; !state.gameOver && i < 60 * 60; i++) frame(state, walk)
+  for (let i = 0; !state.gameOver && i < 60 * 60; i++) frame(state, walk, onArtist)
   if (!state.gameOver || !state.log) throw new Error('the bot never finished the run')
   return { state, log: state.log }
 }

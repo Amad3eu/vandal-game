@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PHASE_2_SCORE, SLAM_MS, TICK_MS } from '../src/game/config'
-import { advanceGame, createGameState, getView, pressJump, type GameState } from '../src/game/engine'
+import { GRAFFITI_SIGNATURE_SCORE, PHASE_2_SCORE, SLAM_MS, TICK_MS } from '../src/game/config'
+import { advanceGame, awardSignature, createGameState, getView, pressJump, resumeGame, type GameState } from '../src/game/engine'
 import { verifyRun } from '../src/game/replay'
 import type { Obstacle } from '../src/types/game'
 import { IDLE, frame, playRun } from './helpers/bot'
@@ -113,6 +113,26 @@ describe('engine', () => {
     })
     expect(state.phase).toBe(2)
     expect(state.score).toBe(1500)
+  })
+
+  it('counts a signature only during an encounter, one per encounter', () => {
+    const state = quietRun()
+    const realArtist = '3f2b6c1e-8a4d-4c7e-9b1a-2d3e4f5a6b7c'
+    expect(awardSignature(state, 'remo')).toBe(false) // nobody met yet
+
+    const p = state.player
+    state.obstacles = [{ id: 500, x: p.x + 10, y: p.y + p.height - 80, width: 80, height: 80, type: 'graffiti-artist', graffitiArtist: 'nina', passed: false }]
+    const events = advanceGame(state, IDLE, TICK_MS)
+    expect(events).toContainEqual({ type: 'artist', artist: 'nina' })
+    expect(state.paused).toBe(true)
+
+    const before = state.score
+    expect(awardSignature(state, realArtist)).toBe(true) // any artist the front end chose
+    expect(awardSignature(state, 'pixo')).toBe(false) // one per encounter
+    expect(state.score).toBe(before + GRAFFITI_SIGNATURE_SCORE)
+    resumeGame(state)
+    expect(awardSignature(state, 'remo')).toBe(false) // the encounter is over
+    expect(state.signatures).toEqual([realArtist])
   })
 
   it('counts the distance run', () => {

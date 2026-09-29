@@ -30,7 +30,9 @@ export const TICK_MS = FRAME_TIME
 /** After a hiccup (tab switch, slow phone) at most this much time is caught up at once. */
 export const MAX_CATCH_UP_MS = 100
 /** Rules version, saved in run logs: bump it when a change alters how a run plays out. */
-export const ENGINE_VERSION = 2 // 2: skate pickups spawn again and a crash with one is a SLAM
+// 2: skate pickups spawn again and a crash with one is a SLAM
+// 3: a signature only counts during an encounter, one per encounter, and can be a real artist's id
+export const ENGINE_VERSION = 3
 /** The floor starts at 76% of the world height (matches the 24% ground strip of the web view). */
 export const GROUND_RATIO = 0.76
 
