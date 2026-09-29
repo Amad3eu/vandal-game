@@ -413,13 +413,26 @@ Se as duas estiverem configuradas, o site usa o servidor próprio (`VITE_LEADERB
 
 Sempre que mudar as regras do jogo, aumente o `ENGINE_VERSION`, para o servidor não comparar partidas com regras diferentes. No Railway, o deploy seguinte já leva as regras novas. No Supabase, rode `npm run build:server-engine` e publique as funções de novo.
 
+### 🎧 Grafiteiros, DJs e MCs no jogo
+
+A partir de 1000 pontos, de vez em quando aparece alguém na rua. Encostar abre o encontro: dá para trocar assinatura, e ela vai para o blackbook. Desenhar a própria assinatura para a pessoa vale +150 pontos, uma vez por pessoa em cada partida.
+
+- **Quem aparece:** um dos artistas cadastrados no `/admin` cuja fase e pontuação mínima o jogador já alcançou. Tem prioridade quem ainda não está no blackbook dele, e ninguém repete na mesma partida.
+- **Sem ninguém liberado ou sem internet:** aparecem os artistas do próprio jogo (Remo, Pixo e Nina).
+- **Na rua:** cada um aparece na sua cor. DJs, MCs e b-boys/b-girls levam 🎧, 🎤 ou 🌀 sobre a cabeça.
+- **No blackbook:** a assinatura fica guardada com o nome e a cor da pessoa, mesmo offline.
+
+A engine decide quando há um encontro, e o site decide quem é (`src/data/encounters.ts`). Por isso o replay que o servidor confere não depende da lista de artistas. Uma assinatura só conta durante um encontro, e só uma por encontro. O servidor também confere se cada artista assinado existe e se já estava liberado naquele momento da partida, para ninguém somar pontos com assinaturas inventadas. Ele guarda com a semente quais artistas estavam liberados quando a partida começou, então editar ou apagar um artista no `/admin` não derruba quem já está jogando.
+
+O servidor lista os artistas ativos em `GET /v1/artists` (sem as imagens, para ser leve). Cada assinatura tem o próprio endereço, `GET /v1/artists/<id>/signature`, carregado só quando a pessoa aparece.
+
 ### 🛠️ Painel admin (`/admin`)
 
 Uma página só para o time, em `https://<site>/admin` (fora do menu do jogo e dos buscadores). Ela tem quatro abas:
 
 - **Roadmap:** para onde o jogo vai, o que já foi entregue (com os PRs) e as decisões tomadas. Os dados ficam em `src/admin/roadmap.ts`. Atualize esse arquivo no mesmo PR de cada entrega.
 - **Placar:** os jogadores do placar global. Dá para trocar ou apagar um apelido, esconder um jogador do placar (ele continua jogando, só não aparece) e apagar uma partida suspeita.
-- **Grafiteiros & DJs:** o cadastro dos artistas reais (grafite, DJ, MC e breaking), com cidade, Instagram, bio, cor, assinatura (PNG, WebP ou JPEG de até 300 KB), fase e pontuação mínima para aparecer. Os ativos saem em `GET /v1/artists`, que o jogo vai usar na próxima etapa.
+- **Grafiteiros & DJs:** o cadastro dos artistas reais (grafite, DJ, MC e breaking), com cidade, Instagram, bio, cor, assinatura (PNG, WebP ou JPEG de até 300 KB), fase e pontuação mínima para aparecer. Os ativos aparecem nos encontros do jogo (veja "Grafiteiros, DJs e MCs no jogo").
 - **Registro:** cada ação feita no painel, com o nome de quem fez.
 
 Para entrar, cada pessoa do time usa a sua chave de admin, conferida pelo servidor do placar. Para criar as chaves:
