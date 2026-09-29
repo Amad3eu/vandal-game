@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { GraffitiArt } from '../types/game'
-import { ARTIST_INFO } from '../data/graffitiArtists'
+import { artOwner } from '../data/encounters'
 import DrawingCanvas from './DrawingCanvas'
 import './Blackbook.css'
+
+/** A file-name-safe version of an artist's name ("DJ Nina" → "dj-nina"). */
+const fileSlug = (name: string) => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'artista'
 
 interface BlackbookProps {
   arts: GraffitiArt[]
@@ -176,18 +179,21 @@ export default function Blackbook({ arts, onClose }: BlackbookProps) {
                   <section className="blackbook-section">
                     <h3 className="section-title">Coletadas na rua</h3>
                     <div className="art-grid">
-                      {artistSignatures.map((art, index) => (
-                        <ArtSticker
-                          key={art.id}
-                          index={index}
-                          image={art.imageData}
-                          alt={`Assinatura de ${ARTIST_INFO[art.artist].name}`}
-                          label={ARTIST_INFO[art.artist].name}
-                          color={ARTIST_INFO[art.artist].color}
-                          timestamp={art.timestamp}
-                          fileName={`assinatura-${art.artist}.png`}
-                        />
-                      ))}
+                      {artistSignatures.map((art, index) => {
+                        const owner = artOwner(art)
+                        return (
+                          <ArtSticker
+                            key={art.id}
+                            index={index}
+                            image={art.imageData}
+                            alt={`Assinatura de ${owner.name}`}
+                            label={owner.name}
+                            color={owner.color}
+                            timestamp={art.timestamp}
+                            fileName={`assinatura-${fileSlug(owner.name)}.png`}
+                          />
+                        )
+                      })}
                     </div>
                   </section>
                 )}
@@ -196,18 +202,21 @@ export default function Blackbook({ arts, onClose }: BlackbookProps) {
                   <section className="blackbook-section">
                     <h3 className="section-title">Minhas assinaturas</h3>
                     <div className="art-grid">
-                      {mySignatures.map((art, index) => (
-                        <ArtSticker
-                          key={art.id}
-                          index={index + 1}
-                          image={art.imageData}
-                          alt={`Meu desenho para ${ARTIST_INFO[art.artist].name}`}
-                          label={`Para ${ARTIST_INFO[art.artist].name}`}
-                          color={ARTIST_INFO[art.artist].color}
-                          timestamp={art.timestamp}
-                          fileName={`minha-assinatura-${art.artist}.png`}
-                        />
-                      ))}
+                      {mySignatures.map((art, index) => {
+                        const owner = artOwner(art)
+                        return (
+                          <ArtSticker
+                            key={art.id}
+                            index={index + 1}
+                            image={art.imageData}
+                            alt={`Meu desenho para ${owner.name}`}
+                            label={`Para ${owner.name}`}
+                            color={owner.color}
+                            timestamp={art.timestamp}
+                            fileName={`minha-assinatura-${fileSlug(owner.name)}.png`}
+                          />
+                        )
+                      })}
                     </div>
                   </section>
                 )}

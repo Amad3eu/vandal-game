@@ -71,6 +71,11 @@ export function createSupabaseOnline(url: string, anonKey: string): OnlineServic
       }
     },
 
+    // Real artists live on the Railway server only (server/leaderboard): the game's own show up.
+    async artists() {
+      return []
+    },
+
     async setNickname(nickname: string) {
       try {
         const supabase = await signedIn()

@@ -1,5 +1,6 @@
 import type { GameMode } from '../types/game'
 import type { RunLog } from '../game/engine'
+import type { RosterArtist } from '../data/encounters'
 import { withTimeout, type LeaderboardRow, type OnlineService, type RunTicket, type SubmitResult } from './online'
 
 /** How long starting a ranked run may wait for the server before playing offline. */
@@ -112,6 +113,20 @@ export function createServerOnline(baseUrl: string, store: TokenStore = browserS
       try {
         const response = await fetch(`${api}/v1/leaderboard?mode=${mode}&limit=20`)
         return response.ok ? await response.json() : []
+      } catch {
+        return []
+      }
+    },
+
+    async artists(): Promise<RosterArtist[]> {
+      try {
+        const response = await fetch(`${api}/v1/artists`)
+        if (!response.ok) return []
+        const list = (await response.json()) as (Omit<RosterArtist, 'signatureUrl'> & { hasSignature: boolean; version: string })[]
+        return list.map(({ hasSignature, version, ...artist }) => ({
+          ...artist,
+          signatureUrl: hasSignature ? `${api}/v1/artists/${artist.id}/signature?v=${version}` : null,
+        }))
       } catch {
         return []
       }

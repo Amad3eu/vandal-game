@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Obstacle, GraffitiArtist } from "../types/game";
+import { Obstacle } from "../types/game";
+import { KIND_ICON, type EncounterArtist } from "../data/encounters";
 import powerJumpIcon from "../assets/sprites/powerups/power-jump.svg";
 import powerLightningIcon from "../assets/sprites/powerups/power-lightning.svg";
 import sprayFrame1 from "../assets/sprites/Spray/Sprite-0004.png";
@@ -23,6 +24,8 @@ interface ObstaclesProps {
   obstacles: Obstacle[];
   /** How much of the intro wall's tag is painted (0..1). */
   tagProgress?: number;
+  /** Who each graffiti-artist obstacle is (by obstacle id; see src/data/encounters.ts). */
+  artists?: Map<number, EncounterArtist>;
 }
 
 function SpraySprite() {
@@ -90,17 +93,13 @@ function TrainSprite() {
   );
 }
 
-function GraffitiArtistSprite({ artist }: { artist?: GraffitiArtist }) {
-  const colors: Record<GraffitiArtist, string> = {
-    remo: "#FF6B6B",
-    pixo: "#4ECDC4",
-    nina: "#FFE66D",
-  };
-
-  const color = artist ? colors[artist] : "#FF6B6B";
+/** A street artist in their color; DJs, MCs and b-boys/b-girls carry their icon over the head. */
+function GraffitiArtistSprite({ artist }: { artist?: EncounterArtist }) {
+  const color = artist?.color ?? "#FF6B6B";
 
   return (
     <div className="graffiti-artist">
+      {artist && artist.kind !== "graffiti" && <span className="artist-kind-icon">{KIND_ICON[artist.kind]}</span>}
       <div className="artist-head" style={{ backgroundColor: color }} />
       <div className="artist-body" style={{ backgroundColor: color }} />
       <div className="artist-arm artist-arm-left" style={{ backgroundColor: color }} />
@@ -111,7 +110,7 @@ function GraffitiArtistSprite({ artist }: { artist?: GraffitiArtist }) {
   );
 }
 
-export default function Obstacles({ obstacles, tagProgress = 1 }: ObstaclesProps) {
+export default function Obstacles({ obstacles, tagProgress = 1, artists }: ObstaclesProps) {
   return (
     <div className="obstacles">
       {obstacles.map((obstacle) => (
@@ -199,7 +198,7 @@ export default function Obstacles({ obstacles, tagProgress = 1 }: ObstaclesProps
             </>
           ) : obstacle.type === "graffiti-artist" ? (
             <>
-              <GraffitiArtistSprite artist={obstacle.graffitiArtist} />
+              <GraffitiArtistSprite artist={artists?.get(obstacle.id)} />
             </>
           ) : obstacle.type === "building" ? (
             <>

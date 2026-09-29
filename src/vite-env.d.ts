@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string
   /** 'dev' uses a fake, local leaderboard instead (also `?online=dev` in the URL). */
   readonly VITE_ONLINE?: string
+  /** Browser test builds only (playwright.config.ts): exposes the engine as window.__engine. */
+  readonly VITE_E2E?: string
 }
 
 interface ImportMeta {

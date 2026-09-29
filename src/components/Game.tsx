@@ -12,10 +12,9 @@ import SlamEffect from './SlamEffect'
 import { SLAM_SHAKE_UNTIL } from '../data/slam'
 import Blackbook from './Blackbook'
 import { useGameInput } from '../hooks/useGameInput'
-import { ARTIST_SIGNATURES } from '../data/artistSignatures'
 import { GAME_MODES, RUNNER_TUNING } from '../data/gameModes'
 import { PHASES } from '../data/phases'
-import { ARTIST_INFO } from '../data/graffitiArtists'
+import { artOwner, gameArtist, isGameArtist, nameSignature, pickEncounterArtist, type EncounterArtist, type RosterArtist } from '../data/encounters'
 import {
   advanceGame,
   awardSignature,
@@ -29,7 +28,7 @@ import {
   resumeGame,
   type GameState,
 } from '../game/engine'
-import { Checkpoint, GameMode, GamePhase, GraffitiArtist, GraffitiArt } from '../types/game'
+import { Checkpoint, GameMode, GamePhase, GraffitiArt } from '../types/game'
 import type { RunLog } from '../game/engine'
 import type { MusicOption } from '../App'
 import dayBackground from '../assets/background/9.png'
@@ -44,6 +43,34 @@ const CAUGHT_MS = 1300
 
 /** The last run's log (seed + inputs per tick), kept for replays and, later, score checks. */
 const LAST_RUN_KEY = 'dinoGameLastRun'
+
+/** Largest signature kept in the blackbook: it lives in localStorage, which only holds a few MB. */
+const SIGNATURE_MAX = { width: 480, height: 200 }
+
+/**
+ * The signature image to keep in the blackbook, as a small data URL (so it stays even offline or
+ * if the artist is taken off the server). Artists without an image, or whose image can't be
+ * loaded, get their name drawn instead.
+ */
+async function signatureImage(artist: EncounterArtist) {
+  const drawnName = nameSignature(artist.name, artist.color)
+  if (!artist.signature) return drawnName
+  if (artist.signature.startsWith('data:')) return artist.signature
+  try {
+    const response = await fetch(artist.signature, { signal: AbortSignal.timeout(8000) })
+    const blob = await response.blob()
+    if (!response.ok || !blob.type.startsWith('image/')) return drawnName
+    const bitmap = await createImageBitmap(blob)
+    const scale = Math.min(1, SIGNATURE_MAX.width / bitmap.width, SIGNATURE_MAX.height / bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/png')
+  } catch {
+    return drawnName
+  }
+}
 
 function readTotalCoins() {
   const saved = localStorage.getItem('dinoGameTotalCoins')
@@ -69,10 +96,12 @@ interface GameProps {
   checkpoint?: Checkpoint | null
   /** Seed handed out by the leaderboard server for a ranked run (a random one otherwise). */
   seed?: number
+  /** Real artists from the leaderboard server; encounters pick from them (see src/data/encounters.ts). */
+  artists?: RosterArtist[]
   onGameOver: (result: RunResult) => void
 }
 
-export default function Game({ mode, highScore, selectedMusic, checkpoint = null, seed, onGameOver }: GameProps) {
+export default function Game({ mode, highScore, selectedMusic, checkpoint = null, seed, artists = [], onGameOver }: GameProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -93,6 +122,17 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     })
   }
   const engine = engineRef.current
+  // Browser tests only (the e2e build sets VITE_E2E; production builds drop this line).
+  if (import.meta.env.VITE_E2E) (window as unknown as { __engine: GameState }).__engine = engine
+
+  // Who each graffiti-artist obstacle is: picked when it shows up on the street, so the sprite,
+  // the dialog and the blackbook all show the same person.
+  const encounterArtists = useRef(new Map<number, EncounterArtist>())
+  // Met in this run (a checkpoint brings the ones signed before it), and the ones signed, for the HUD.
+  const metThisRun = useRef(new Set<string>(engine.signatures))
+  const signedArtists = useRef(new Map<string, { name: string; color: string }>())
+  const rosterRef = useRef(artists)
+  rosterRef.current = artists
 
   const [view, setView] = useState(() => getView(engine))
   const [worldScale, setWorldScale] = useState(1)
@@ -105,7 +145,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     const saved = localStorage.getItem('dinoGameBlackbook')
     return saved ? JSON.parse(saved) : []
   })
-  const [currentArtist, setCurrentArtist] = useState<GraffitiArtist | null>(null)
+  const [currentArtist, setCurrentArtist] = useState<EncounterArtist | null>(null)
   const [interactionStage, setInteractionStage] = useState<
     'dialog' | 'drawing' | 'confirmation' | 'signature-choice' | 'none'
   >('none')
@@ -122,21 +162,44 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     onDash: () => pressDash(engine),
   })
 
-  const handleAcceptArtist = useCallback(() => {
+  /** Picks who each new graffiti-artist obstacle is, the moment it shows up on the street. */
+  const assignEncounterArtists = useCallback(() => {
+    const assigned = encounterArtists.current
+    // Forget the ones that left the screen (unless it's the encounter going on).
+    const present = new Set(engine.obstacles.map((obstacle) => obstacle.id))
+    for (const id of assigned.keys()) if (!present.has(id) && id !== engine.artistEncounterId) assigned.delete(id)
+
+    for (const obstacle of engine.obstacles) {
+      if (obstacle.type !== 'graffiti-artist' || assigned.has(obstacle.id)) continue
+      const collected = new Set(blackbookRef.current.filter((art) => art.type === 'artist-signature').map((art) => art.artist))
+      // Nobody twice on the street at once, and nobody the player already met in this run.
+      const taken = new Set([...metThisRun.current, ...[...assigned.values()].map((artist) => artist.id)])
+      const artist =
+        pickEncounterArtist(rosterRef.current, { phase: engine.phase, score: engine.score, collected, metThisRun: taken }) ??
+        gameArtist(obstacle.graffitiArtist ?? 'remo')
+      assigned.set(obstacle.id, artist)
+    }
+  }, [engine])
+
+  /** Blackbook fields that say whose art it is (real artists keep their name and color with it). */
+  const ownerFields = (artist: EncounterArtist) =>
+    isGameArtist(artist.id) ? { artist: artist.id } : { artist: artist.id, artistName: artist.name, artistColor: artist.color }
+
+  const handleAcceptArtist = useCallback(async () => {
     if (!currentArtist) return
-    // First, add artist signature to blackbook
+    // Ask right away if the player wants to draw their signature; the artist's one lands in the
+    // blackbook as soon as its image is ready.
+    setInteractionStage('signature-choice')
+    const imageData = await signatureImage(currentArtist)
     const artistSig: GraffitiArt = {
-      id: `${currentArtist}-sig-${Date.now()}`,
-      artist: currentArtist,
+      id: `${currentArtist.id}-sig-${Date.now()}`,
+      ...ownerFields(currentArtist),
       type: 'artist-signature',
-      imageData: ARTIST_SIGNATURES[currentArtist],
+      imageData,
       timestamp: Date.now(),
     }
     blackbookRef.current = [...blackbookRef.current, artistSig]
     setBlackbook([...blackbookRef.current])
-
-    // Ask if player wants to draw signature for the artist
-    setInteractionStage('signature-choice')
   }, [currentArtist])
 
   const endEncounter = useCallback(() => {
@@ -157,18 +220,20 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
 
     // Add art to blackbook with appropriate type
     const newArt: GraffitiArt = {
-      id: `${currentArtist}-${drawingType}-${Date.now()}`,
-      artist: currentArtist,
+      id: `${currentArtist.id}-${drawingType}-${Date.now()}`,
+      ...ownerFields(currentArtist),
       type: drawingType === 'graffiti' ? 'artist-signature' : 'my-signature',
       imageData: drawnImage,
       timestamp: Date.now(),
     }
 
-    const updatedBlackbook = [...blackbookRef.current, newArt]
-    setBlackbook(updatedBlackbook)
+    // The ref first: the artist's signature may land in the blackbook at the same time.
+    blackbookRef.current = [...blackbookRef.current, newArt]
+    setBlackbook(blackbookRef.current)
 
     // Add signature and score (only once per artist)
-    if (awardSignature(engine, currentArtist)) {
+    if (awardSignature(engine, currentArtist.id)) {
+      signedArtists.current.set(currentArtist.id, { name: currentArtist.name, color: currentArtist.color })
       localStorage.setItem('dinoGameSignatures', JSON.stringify(engine.signatures))
     }
 
@@ -196,7 +261,12 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
 
   useEffect(() => {
     blackbookRef.current = blackbook
-    localStorage.setItem('dinoGameBlackbook', JSON.stringify(blackbook))
+    try {
+      localStorage.setItem('dinoGameBlackbook', JSON.stringify(blackbook))
+    } catch (error) {
+      // Storage full or blocked: the blackbook still shows until the page is closed.
+      console.warn('blackbook not saved:', error)
+    }
   }, [blackbook])
 
   useEffect(() => {
@@ -214,6 +284,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
 
       // Fixed 60Hz ticks inside: the same physics on any refresh rate.
       const events = advanceGame(engine, held.current, elapsedMs)
+      assignEncounterArtists()
       setView(getView(engine))
 
       for (const event of events) {
@@ -221,7 +292,9 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
           localStorage.setItem('dinoGameTotalCoins', String(engine.totalCoins))
         } else if (event.type === 'artist') {
           // Pause and start the interaction; endEncounter resumes the engine.
-          setCurrentArtist(event.artist)
+          const artist = (engine.artistEncounterId !== null && encounterArtists.current.get(engine.artistEncounterId)) || gameArtist(event.artist)
+          metThisRun.current.add(artist.id)
+          setCurrentArtist(artist)
           setInteractionStage('dialog')
           setGameActive(false)
           return
@@ -254,7 +327,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     return () => {
       cancelAnimationFrame(frameId)
     }
-  }, [engine, gameActive, held, onGameOver])
+  }, [engine, gameActive, held, onGameOver, assignEncounterArtists])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -283,6 +356,13 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
       }
     }
   }, [selectedMusic])
+
+  /** Name and color of an artist signed in this run, for the HUD dots (also ones signed before a checkpoint). */
+  const signatureOwner = (id: string) => {
+    const known = signedArtists.current.get(id) ?? artists.find((artist) => artist.id === id)
+    if (known) return { id, name: known.name, color: known.color }
+    return { id, ...artOwner(blackbook.find((art) => art.artist === id) ?? { artist: id }) }
+  }
 
   const { player, phase, score, grindCombo, wallClingSide } = view
   const speedPercentage = (view.speed / RUNNER_TUNING.maxSpeed) * 100
@@ -344,7 +424,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
               facing={visualFacing}
               isMoving={isMoving}
             />
-            <Obstacles obstacles={view.obstacles} tagProgress={view.tagProgress} />
+            <Obstacles obstacles={view.obstacles} tagProgress={view.tagProgress} artists={encounterArtists.current} />
             {view.slamProgress !== null && (
               <SlamEffect progress={view.slamProgress} x={player.x} y={player.y} width={player.width} height={player.height} />
             )}
@@ -397,7 +477,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
           skateTimeLeftMs={view.skateMs}
           lightningTimeLeftMs={view.lightningMs}
           jumpBoostTimeLeftMs={view.jumpBoostMs}
-          signatures={view.signatures}
+          signatures={view.signatures.map(signatureOwner)}
           blackbookCount={blackbook.length}
           onOpenBlackbook={() => setShowBlackbook(true)}
           phase={phase}
@@ -406,25 +486,20 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
         />
 
         {currentArtist && interactionStage === 'dialog' && (
-          <GraffitiDialog
-            artist={currentArtist}
-            onAccept={handleAcceptArtist}
-            onReject={endEncounter}
-            artistSignatureImage={ARTIST_SIGNATURES[currentArtist]}
-          />
+          <GraffitiDialog artist={currentArtist} onAccept={handleAcceptArtist} onReject={endEncounter} />
         )}
 
         {currentArtist && interactionStage === 'signature-choice' && (
           <div className="street-backdrop">
-            <div className="street-dialog paper-panel" style={artistStyle(currentArtist)} role="dialog" aria-labelledby="choice-title">
+            <div className="street-dialog paper-panel" style={artistStyle(currentArtist.color)} role="dialog" aria-labelledby="choice-title">
               <div className="street-dialog-artist">
-                <ArtistPortrait artist={currentArtist} />
-                <span className="artist-tag-name">{ARTIST_INFO[currentArtist].name}</span>
+                <ArtistPortrait name={currentArtist.name} kind={currentArtist.kind} />
+                <span className="artist-tag-name">{currentArtist.name}</span>
               </div>
               <div className="street-dialog-body">
                 <p className="speech-bubble">Fechou! Minha assinatura já tá no seu blackbook. 🤝</p>
                 <h2 id="choice-title" className="dialog-ask">
-                  Quer deixar a sua assinatura para {ARTIST_INFO[currentArtist].name}?
+                  Quer deixar a sua assinatura para {currentArtist.name}?
                 </h2>
                 <div className="street-dialog-actions">
                   <button
@@ -447,7 +522,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
 
         {currentArtist && interactionStage === 'drawing' && (
           <DrawingCanvas
-            artist={currentArtist}
+            artist={currentArtist.name}
             onDone={handleDrawingDone}
             onCancel={endEncounter}
             title={drawingType === 'signature' ? 'Sua Assinatura' : 'Seu Graffiti'}
@@ -457,7 +532,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
         {currentArtist && drawnImage && interactionStage === 'confirmation' && (
           <DrawingConfirmation
             imageData={drawnImage}
-            artist={currentArtist}
+            artist={currentArtist.name}
             onConfirm={handleConfirmArt}
             onGoBack={() => {
               setDrawnImage(null)
