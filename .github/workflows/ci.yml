@@ -1,0 +1,88 @@
+# Checks every pull request (and main): types, builds, the game rules, the leaderboard server on a
+# real Postgres, the site in a browser, and the Expo app's types. A red check means something broke.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A new push to a PR replaces its old run; runs on main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  site:
+    name: Site e servidor
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: vandal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vandal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/vandal_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Tipos (site e testes)
+        run: npm run type-check && npm run type-check:tests
+      - name: Build do servidor do placar (com checagem de tipos)
+        run: npm run build:leaderboard
+      - name: Engine do Supabase atualizada
+        run: npm run build:server-engine && git diff --exit-code supabase/functions/_shared/vandal-engine.js
+
+      - name: Regras do jogo, dados e servidor (Vitest + Postgres)
+        run: npm test
+
+      - name: Navegador para os testes
+        run: npx playwright install --with-deps chromium
+      - name: Build do site e testes no navegador (Playwright)
+        run: npm run test:e2e
+      - name: Relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  app:
+    name: App Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: mobile
+      - name: Tipos do app
+        run: npx tsc --noEmit
+        working-directory: mobile
