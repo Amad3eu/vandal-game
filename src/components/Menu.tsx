@@ -8,7 +8,7 @@ import { formatDistance } from '../data/routeMap'
 import Leaderboard from './Leaderboard'
 import type { Checkpoint, GameMode } from '../types/game'
 import { GAME_MODES, GAME_MODE_ORDER } from '../data/gameModes'
-import { CHECKPOINT_TIP, PHASES } from '../data/phases'
+import { CHECKPOINT_TIP, PHASES, phaseTip } from '../data/phases'
 import TitleScene from './TitleScene'
 
 interface MenuProps {
@@ -304,6 +304,9 @@ export default function Menu({
             <ul className="tips-list">
               <li>Desvie dos obstáculos para marcar pontos.</li>
               <li>{CHECKPOINT_TIP}.</li>
+              {([1, 2, 3] as const).map((phase) => (
+                <li key={phase}>{phaseTip(phase)}.</li>
+              ))}
               <li>Encontre grafiteiros para trocar assinaturas no seu blackbook.</li>
               <li>{modeInfo.tip}.</li>
             </ul>

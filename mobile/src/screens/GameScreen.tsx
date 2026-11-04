@@ -3,16 +3,20 @@ import { AppState, BackHandler, Pressable, StyleSheet, Text, View, useWindowDime
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ARTIST_SIGNATURES,
+  PHASE_BANNER_MS,
   PHASES,
   advanceGame,
   createGameState,
   fitWorld,
   getView,
+  phaseBannerTip,
+  pickGameArtist,
   pressDash,
   pressJump,
   releaseJump,
   resizeWorld,
   resumeGame,
+  theirSignatureId,
   type Checkpoint,
   type GameMode,
   type GameState,
@@ -49,8 +53,6 @@ interface GameScreenProps {
   onExit: () => void
 }
 
-/** How long the "new phase" banner stays up after grabbing a checkpoint flag. */
-const PHASE_BANNER_MS = 2600
 /** Game over: how long the cop's grab shows before the menu, and how long the run-in takes. */
 const CAUGHT_MS = 1300
 const CAUGHT_RUN_MS = 550
@@ -99,6 +101,10 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
   // Bottom of the pause button + HUD strip, so the grind badge goes under it (away from the player).
   const [topBarBottom, setTopBarBottom] = useState(56)
   const [artist, setArtist] = useState<GraffitiArtist | null>(null)
+  /** Who the player already met in this run: they don't stop the run a second time. */
+  const metThisRun = useRef(new Set<GraffitiArtist>())
+  /** Who each artist on the street is (by obstacle id), picked when they show up, like the web. */
+  const streetArtists = useRef(new Map<number, GraffitiArtist>())
   // Game over: the cop grabs the player for a moment, then the menu shows.
   const [caught, setCaught] = useState<RunResult | null>(null)
   const [caughtMs, setCaughtMs] = useState(0)
@@ -132,14 +138,21 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
 
       // Fixed 60Hz ticks inside: the same physics on any refresh rate.
       const events = advanceGame(engine, input.held, elapsedMs)
+      assignStreetArtists()
       setFrame({ view: getView(engine), clock: clockRef.current })
 
       for (const event of events) {
         if (event.type === 'coin') {
           latest.current.onCoinsChange(engine.totalCoins)
         } else if (event.type === 'artist') {
+          const who = (engine.artistEncounterId !== null && streetArtists.current.get(engine.artistEncounterId)) || event.artist
+          if (metThisRun.current.has(who)) {
+            resumeGame(engine) // met already in this run: they wave, the run goes on
+            continue
+          }
+          metThisRun.current.add(who)
           input.releaseAll()
-          setArtist(event.artist)
+          setArtist(who)
           return
         } else if (event.type === 'gameOver') {
           input.releaseAll()
@@ -193,6 +206,18 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
     return () => cancelAnimationFrame(frameId)
   }, [caught])
 
+  /** Picks who each new artist on the street is: someone not met in this run yet, when there's one. */
+  function assignStreetArtists() {
+    const assigned = streetArtists.current
+    const present = new Set(engine.obstacles.map((obstacle) => obstacle.id))
+    for (const id of assigned.keys()) if (!present.has(id) && id !== engine.artistEncounterId) assigned.delete(id)
+    for (const obstacle of engine.obstacles) {
+      if (obstacle.type !== 'graffiti-artist' || assigned.has(obstacle.id)) continue
+      const drawn = obstacle.graffitiArtist ?? 'remo'
+      assigned.set(obstacle.id, pickGameArtist(drawn, metThisRun.current, new Set(assigned.values())) ?? drawn)
+    }
+  }
+
   const closeArtist = () => {
     resumeGame(engine)
     setArtist(null)
@@ -222,6 +247,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
         groundLevel={engine.config.groundLevel}
         facing={facing}
         moving={moving}
+        artists={streetArtists.current}
         caughtProgress={caught ? Math.min(1, caughtMs / CAUGHT_RUN_MS) : null}
       />
 
@@ -271,6 +297,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
             <Text style={styles.bannerNote}>
               {continuedHere ? 'Continuando do checkpoint' : '+250 pontos · checkpoint salvo'}
             </Text>
+            <Text style={styles.bannerTip}>{phaseBannerTip(view.phase)}</Text>
           </View>
         </View>
       )}
@@ -286,7 +313,7 @@ export default function GameScreen({ mode, totalCoins, highScore, checkpoint, on
           artist={artist}
           onAccept={() =>
             addToBlackbook({
-              id: `${artist}-sig-${Date.now()}`,
+              id: `${theirSignatureId(artist)}${Date.now()}`,
               artist,
               type: 'artist-signature',
               imageData: ARTIST_SIGNATURES[artist],
@@ -398,7 +425,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '24%',
+    top: '16%',
     alignItems: 'center',
   },
   banner: {
@@ -424,6 +451,13 @@ const styles = StyleSheet.create({
     color: '#c7d2fe',
     fontSize: 13,
     fontWeight: '600',
+  },
+  bannerTip: {
+    maxWidth: 420,
+    color: '#ffd23f',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   overlay: {
     position: 'absolute',

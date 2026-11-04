@@ -26,16 +26,16 @@ async function serverWithADj(page: Page) {
 }
 
 /** Skips the intro and puts a graffiti encounter right in front of the player. */
-async function encounterAhead(page: Page) {
+async function encounterAhead(page: Page, id = 7001) {
   await page.locator('.dinosaur').waitFor()
-  await page.evaluate(() => {
+  await page.evaluate((id) => {
     const e = (window as unknown as { __engine: any }).__engine
     e.introMs = 99999
     e.introOffset = 0
     e.chaser = null
     e.nextSpawnGap = Infinity
-    e.obstacles = [{ id: 7001, x: e.player.x + 160, y: e.config.groundLevel - 88, width: 80, height: 80, type: 'graffiti-artist', graffitiArtist: 'remo', passed: false }]
-  })
+    e.obstacles = [{ id, x: e.player.x + 160, y: e.config.groundLevel - 88, width: 80, height: 80, type: 'graffiti-artist', graffitiArtist: 'remo', passed: false }]
+  }, id)
 }
 
 test('meets a real DJ from the server and keeps their signature in the blackbook', async ({ page }) => {
@@ -67,4 +67,28 @@ test("offline, the game's own artists show up", async ({ page }) => {
   await encounterAhead(page)
   await expect(page.getByRole('dialog')).toContainText(ARTIST_INFO.remo.name)
   await expect(page.locator('.artist-kind-icon')).toHaveCount(0)
+})
+
+test('nobody stops the run twice, and their signature goes in the blackbook once', async ({ page }) => {
+  await page.route(`${SERVER}/**`, (route) => route.abort())
+  await openTitle(page)
+  await playButton(page).click()
+  const met: string[] = []
+  for (const id of [7001, 7002, 7003]) {
+    await encounterAhead(page, id)
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    met.push((await dialog.locator('.artist-tag-name').textContent()) ?? '')
+    await page.getByRole('button', { name: 'Sim, bora!' }).click()
+    await page.getByRole('button', { name: 'Agora não' }).click()
+  }
+  expect(new Set(met)).toEqual(new Set(Object.values(ARTIST_INFO).map((info) => info.name))) // the engine drew Remo each time
+  // Everyone met: the next one doesn't stop the run, just waves.
+  await encounterAhead(page, 7004)
+  await expect.poll(() => page.evaluate(() => (window as any).__engine.obstacles.find((o: any) => o.id === 7004)?.met)).toBe(true)
+  await expect(page.locator('.artist-wave')).toHaveText('👋')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(await page.evaluate(() => (window as any).__engine.paused)).toBe(false)
+  const blackbook = await page.evaluate(() => JSON.parse(localStorage.getItem('dinoGameBlackbook') ?? '[]'))
+  expect(blackbook).toHaveLength(3)
 })
