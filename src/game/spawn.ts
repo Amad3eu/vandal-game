@@ -3,6 +3,7 @@ import { FREE_TUNING, RUNNER_TUNING } from '../data/gameModes'
 import type { GameState } from './engine'
 import {
   BIRD_ALTITUDE,
+  BIRD_LOW_ALTITUDE,
   BUILDING_EXTRA_AIRTIME_FRAMES,
   BUILDING_WIDTH,
   CHECKPOINT_FLAG_HEIGHT,
@@ -14,8 +15,18 @@ import {
   CLIMB_STEP_RISE,
   CLIMB_STEPS,
   CLIMB_TOP_FRAMES,
+  CONE_HEIGHT,
+  CONE_SPACING,
+  CONE_WIDTH,
+  DUCK_BAR_CLEARANCE,
+  DUCK_BAR_TOP,
+  DUCK_BAR_WIDTH,
   FRAME_TIME,
+  PHASE_MIX,
   POWERUP_SIZE,
+  RAMP_CHANCE,
+  RAMP_WIDTH,
+  TRAIN_RUNWAY_FRAMES,
   SKATE_SPAWN_CHANCE,
   SKATE_SPAWN_SCORE,
   TRAIN_PLATFORM_HEIGHT,
@@ -40,34 +51,70 @@ export function getSpawnGap(state: GameState, speed: number) {
   const lerp = ([start, end]: number[]) => start + (end - start) * progress
   const minMs = lerp(RUNNER_TUNING.minGapMs)
   const maxMs = lerp(RUNNER_TUNING.maxGapMs)
-  return speed * ((minMs + state.random() * (maxMs - minMs)) / FRAME_TIME)
+  // Later phases bring obstacles closer together, never under the minimum (a full jump).
+  const rangeFactor = 1 - 0.25 * (state.phase - 1)
+  return speed * ((minMs + state.random() * (maxMs - minMs) * rangeFactor) / FRAME_TIME)
 }
 
 /**
  * Extra distance before the next spawn after obstacles the player stays on or above for
- * longer than a normal jump: riding a single train to its end, a wall-jump over a building,
- * a trampoline bounce. The free mode only needs the train's length: the player sets the pace.
+ * longer than a normal jump: a wall-jump over a building, a trampoline bounce. (Train lines
+ * get theirs from createFloatingPath's length.)
  */
 export function spacingAfter(state: GameState, obstacle: Obstacle, speed: number) {
-  if (obstacle.type === 'train') return obstacle.width
   if (state.mode !== 'runner') return 0
   if (obstacle.type === 'building') return obstacle.width + speed * BUILDING_EXTRA_AIRTIME_FRAMES
   if (obstacle.type === 'trampoline') return speed * TRAMPOLINE_EXTRA_AIRTIME_FRAMES
   return 0
 }
 
-/** A line of 2–4 trains to ride on, with coins on top and a power-up. */
-export function createFloatingPath(state: GameState): Obstacle[] {
+/**
+ * A line of 1–4 train cars to ride on, with coins on top and a power-up. The cars are solid:
+ * the player gets on with a jump or, most of the time, up a ramp in front of the first car.
+ * Returns the pieces and the line's length from where it spawns (runway included).
+ */
+export function createFloatingPath(state: GameState): { obstacles: Obstacle[]; length: number } {
   const startX = state.worldWidth + 20
   const y = state.config.groundLevel - TRAIN_PLATFORM_HEIGHT - 8
-  const trainCount = 2 + Math.floor(state.random() * 3) // 2, 3 ou 4 trens lado a lado
+  const minCars = PHASE_MIX.minCars[state.phase - 1]
+  const trainCount = minCars + Math.floor(state.random() * (5 - minCars)) // up to 4 cars
+  const withRamp = state.random() < RAMP_CHANCE
+  // Without a ramp the jump onto the roof starts earlier than any other: leave room for it after
+  // whatever came before.
+  const runway = withRamp ? 0 : state.mode === 'runner' ? state.effectiveSpeed * TRAIN_RUNWAY_FRAMES : 0
+  const trainsX = startX + runway + (withRamp ? RAMP_WIDTH : 0)
   const totalWidth = TRAIN_PLATFORM_WIDTH * trainCount
   const spawned: Obstacle[] = []
+
+  if (withRamp) {
+    spawned.push({
+      id: state.nextObstacleId++,
+      x: startX,
+      y,
+      width: RAMP_WIDTH,
+      height: TRAIN_PLATFORM_HEIGHT,
+      type: 'ramp',
+      passed: false,
+    })
+    // Coins up the slope show the way.
+    for (let c = 1; c <= 3; c += 1) {
+      const along = (c / 4) * RAMP_WIDTH
+      spawned.push({
+        id: state.nextObstacleId++,
+        x: startX + along - 9,
+        y: y + TRAIN_PLATFORM_HEIGHT * (1 - along / RAMP_WIDTH) - 52,
+        width: 18,
+        height: 18,
+        type: 'coin',
+        passed: false,
+      })
+    }
+  }
 
   for (let i = 0; i < trainCount; i += 1) {
     spawned.push({
       id: state.nextObstacleId++,
-      x: startX + i * TRAIN_PLATFORM_WIDTH,
+      x: trainsX + i * TRAIN_PLATFORM_WIDTH,
       y,
       width: TRAIN_PLATFORM_WIDTH,
       height: TRAIN_PLATFORM_HEIGHT,
@@ -76,11 +123,11 @@ export function createFloatingPath(state: GameState): Obstacle[] {
     })
   }
 
-  const coinCount = 4
+  const coinCount = 2 + trainCount * 2
   for (let c = 0; c < coinCount; c += 1) {
     spawned.push({
       id: state.nextObstacleId++,
-      x: startX + 40 + c * Math.floor((totalWidth - 80) / coinCount),
+      x: trainsX + 40 + c * Math.floor((totalWidth - 80) / coinCount),
       y: y - 34,
       width: 18,
       height: 18,
@@ -92,7 +139,7 @@ export function createFloatingPath(state: GameState): Obstacle[] {
   const powerType = state.random() < 0.55 ? 'power-lightning' : 'power-jump'
   spawned.push({
     id: state.nextObstacleId++,
-    x: startX + totalWidth * 0.52,
+    x: trainsX + totalWidth * 0.52,
     y: y - 54,
     width: POWERUP_SIZE,
     height: POWERUP_SIZE,
@@ -100,7 +147,7 @@ export function createFloatingPath(state: GameState): Obstacle[] {
     passed: false,
   })
 
-  return spawned
+  return { obstacles: spawned, length: trainsX + totalWidth - startX }
 }
 
 /**
@@ -226,14 +273,15 @@ export function createObstacle(state: GameState): Obstacle {
     }
   }
 
-  if (state.score >= 520 && random() < 0.1) {
+  // Construction beam hanging over the street: duck under it (a jump hits it). More often later on.
+  if (state.score >= 700 && random() < 0.14 + 0.04 * (state.phase - 1)) {
     return {
       id: state.nextObstacleId++,
       x,
-      y: groundLevel - TRAIN_PLATFORM_HEIGHT - 8,
-      width: TRAIN_PLATFORM_WIDTH,
-      height: TRAIN_PLATFORM_HEIGHT,
-      type: 'train',
+      y: groundLevel - DUCK_BAR_TOP,
+      width: DUCK_BAR_WIDTH,
+      height: DUCK_BAR_TOP - DUCK_BAR_CLEARANCE,
+      type: 'duck-bar',
       passed: false,
     }
   }
@@ -250,6 +298,8 @@ export function createObstacle(state: GameState): Obstacle {
     }
   }
 
+  if (random() < PHASE_MIX.cones[state.phase - 1]) return createCones(state, x)
+
   if (state.score >= 280 && random() < 0.22) {
     const size = 80
     return {
@@ -264,13 +314,15 @@ export function createObstacle(state: GameState): Obstacle {
   }
 
   const canSpawnBird = state.score >= 400
-  const spawnBird = canSpawnBird && random() < 0.28
+  const spawnBird = canSpawnBird && random() < PHASE_MIX.birds[state.phase - 1]
 
   if (spawnBird) {
+    // Low ones are jumped (like a spray), high ones ducked under (like a beam): one clear move each.
+    const low = random() < 0.5
     return {
       id: state.nextObstacleId++,
       x,
-      y: groundLevel - BIRD_ALTITUDE,
+      y: groundLevel - (low ? BIRD_LOW_ALTITUDE : BIRD_ALTITUDE),
       width: 46,
       height: 28,
       type: 'bird',
@@ -278,6 +330,8 @@ export function createObstacle(state: GameState): Obstacle {
     }
   }
 
+  // Nothing else came up: a spray can, or cones at the very start.
+  if (state.score < 280) return createCones(state, x)
   const size = 80
 
   return {
@@ -287,6 +341,21 @@ export function createObstacle(state: GameState): Obstacle {
     width: size,
     height: size,
     type: 'spray',
+    passed: false,
+  }
+}
+
+/** Traffic cones: one at first, groups of up to 3 later (a longer jump). */
+function createCones(state: GameState, x: number): Obstacle {
+  const most = state.score < 800 ? 1 : state.score < 2000 ? 2 : 3
+  const count = 1 + Math.floor(state.random() * most)
+  return {
+    id: state.nextObstacleId++,
+    x,
+    y: state.config.groundLevel - CONE_HEIGHT - 8,
+    width: count * CONE_WIDTH + (count - 1) * CONE_SPACING,
+    height: CONE_HEIGHT,
+    type: 'cone',
     passed: false,
   }
 }

@@ -17,7 +17,7 @@ interface DevEntry {
 // Made-up artists to test encounters without a server: one from the start, one in phase 2.
 const DEV_ARTISTS: RosterArtist[] = [
   { id: '00000000-0000-4000-8000-00000000d101', name: 'DJ Teste', kind: 'dj', city: 'Recife', bio: 'Salve! Sou a DJ de teste do modo dev.', instagram: null, color: '#4ecdc4', minScore: 0, phase: 1, signatureUrl: nameSignature('DJ Teste', '#4ecdc4') },
-  { id: '00000000-0000-4000-8000-00000000d102', name: 'MC Laje', kind: 'mc', city: 'São Paulo', bio: null, instagram: null, color: '#ffd23f', minScore: 1200, phase: 2, signatureUrl: null },
+  { id: '00000000-0000-4000-8000-00000000d102', name: 'MC Laje', kind: 'mc', city: 'São Paulo', bio: null, instagram: null, color: '#ffd23f', minScore: 4000, phase: 2, signatureUrl: null },
 ]
 
 // A few made-up rivals so the board isn't empty while testing.

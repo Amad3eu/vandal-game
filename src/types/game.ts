@@ -39,6 +39,8 @@ export interface Obstacle {
     | 'skate'
     | 'duck-bar'
     | 'train'
+    | 'ramp'
+    | 'cone'
     | 'floating-platform'
     | 'trampoline'
     | 'coin'
@@ -55,6 +57,8 @@ export interface Obstacle {
   reached?: boolean
   /** Knocked away by a skate SLAM: no longer hurts or holds anything, flies off. */
   knocked?: boolean
+  /** Graffiti artist already met: stays on the sidewalk, waving, while the player runs past. */
+  met?: boolean
   passed: boolean
 }
 
