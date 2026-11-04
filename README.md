@@ -159,6 +159,21 @@ O cenário vem até você e a velocidade aumenta com o tempo.
 | `SHIFT` / `X` | Dash: fica invencível por um instante |
 | `CLIQUE` | Pular com o mouse |
 
+### 🚧 Obstáculos
+
+Cada obstáculo pede um movimento:
+
+| Obstáculo | Como passar |
+| --- | --- |
+| Lata de spray | Pule |
+| Cones | Pule. Vêm em fila: 1 no começo, até 2 a partir de 800 pontos e até 3 a partir de 2000 |
+| Pombo baixo (rente à rua) | Pule |
+| Pombo alto (na altura da cabeça) | Abaixe |
+| Tapume de obra pendurado ("OBRA") | Abaixe e passe por baixo. Aparece a partir de 700 pontos, mais vezes nas fases 2 e 3 |
+| Trem (1 a 4 vagões) | É sólido: bater na frente encerra a partida. Pule em cima, ou suba pela rampa quando tiver uma, e corra no teto pegando as moedas |
+
+Os grafiteiros, DJs e MCs ficam em pé na calçada: encoste neles para trocar assinatura. Cada um para o jogo só uma vez por partida, e a assinatura dele entra uma vez só no blackbook. No modo Livre, o trem também bloqueia a caminhada.
+
 ### 🕹️ Livre (WASD)
 
 Você controla a caminhada: o cenário só avança quando você anda.
@@ -174,7 +189,17 @@ Na fase 3 (Telhados), encoste na parede de um prédio no ar e pule de novo para 
 
 ### 🚩 Fases e checkpoint
 
-As fases (1 Rua, 2 Metrô, 3 Telhados) não mudam mais só com os pontos. Com **1200 pontos** aparece uma escada de plataformas subindo até uma **bandeira de checkpoint**; com **3500 pontos** na fase 2 aparece a escada para os telhados, um degrau mais alta.
+As fases não mudam só com os pontos. Com **2500 pontos** aparece uma escada de plataformas subindo até uma **bandeira de checkpoint**; com **9000 pontos** na fase 2 aparece a escada para os telhados, um degrau mais alta. Jogando bem, o Metrô começa perto dos 45 segundos e os Telhados perto de 1min50.
+
+Cada fase tem a sua cara:
+
+| Fase | O que muda |
+| --- | --- |
+| 🌇 1 · Rua | Dia. Cones, latas e pombos; poucos trens |
+| 🚇 2 · Metrô | Anoitece e aparecem trilhos na rua. Hora do rush: mais que o dobro de trens, sempre com 2 vagões ou mais, e de moedas |
+| 🌃 3 · Telhados | A cidade fica roxa. Prédios altos para escalar e mais pombos; a velocidade máxima é a maior do jogo |
+
+O aviso de nova fase diz o que mudou, e as chances de cada obstáculo por fase ficam em `PHASE_MIX`, em `src/game/config.ts`.
 
 - Pule de degrau em degrau (as plataformas deixam passar por baixo) e encoste na bandeira: abre a próxima fase, cai a noite e você ganha +250 pontos.
 - A câmera sobe junto com você nas plataformas altas.
@@ -295,6 +320,8 @@ Os números de cada modo ficam em `src/data/gameModes.ts`:
 - `FREE_TUNING` (Livre): velocidade de caminhada, aceleração, controle no ar e distância entre obstáculos
 
 O pulo (força e gravidade na subida/descida) fica em `BASE_CONFIG`, em `src/game/config.ts`, e as hitboxes em `src/game/physics.ts`.
+
+O tamanho dos obstáculos também fica em `src/game/config.ts`: trem e rampa (`TRAIN_PLATFORM_*`, `RAMP_*`), cones (`CONE_*`), tapume (`DUCK_BAR_*`) e a altura dos pombos (`BIRD_ALTITUDE`, `BIRD_LOW_ALTITUDE`). As chances de cada um aparecer ficam em `src/game/spawn.ts`. Mexeu em algum deles? Rode o playtest (veja em [Testes](#-testes)) para ver se o jogo ficou fácil, difícil ou repetitivo demais.
 
 A escada do checkpoint também fica em `src/game/config.ts`: `PHASE_2_SCORE`/`PHASE_3_SCORE` (a partir de quantos pontos ela aparece), `CLIMB_STEPS` (degraus por fase), `CLIMB_STEP_RISE` (altura de cada degrau) e `CLIMB_STEP_FRAMES`/`CLIMB_GAP_FRAMES` (largura dos degraus e dos vãos em frames de corrida: ela acompanha a velocidade para o tempo de reação ser o mesmo). A câmera usa `CAMERA_TOP_MARGIN`.
 
@@ -482,7 +509,7 @@ No seu computador:
 ```bash
 npm test                          # regras do jogo e dados (os testes do servidor pulam sem banco)
 npx playwright install chromium   # só na primeira vez
-npm run test:e2e                  # o site no navegador (monta o site e abre em http://127.0.0.1:4173)
+npm run test:e2e                  # o site no navegador (monta o site e abre em http://127.0.0.1:4817)
 ```
 
 Para incluir os testes do servidor, suba um Postgres de teste e passe o endereço dele. O nome do banco precisa ter "test", porque os testes apagam as tabelas:
@@ -495,6 +522,14 @@ TEST_DATABASE_URL=postgres://postgres:test@localhost:55432/vandal_test npm test
 - `tests/*.test.ts` (Vitest): engine, conferência das partidas, dados compartilhados, servidor do placar e o cliente do site.
 - `tests/e2e/` (Playwright): botões de toque, navegador tipo Samsung, uma partida e o painel admin com um servidor simulado.
 - Um robô (`tests/helpers/bot.ts`) joga partidas de verdade para os testes da engine e do servidor.
+
+### Playtest com o robô
+
+```bash
+npm run playtest
+```
+
+O robô joga 300 partidas em cada perfil (`perfeito`, que nunca erra o tempo, `experiente` e `iniciante`, que reagem alguns frames antes ou depois, como uma pessoa) e mostra quanto tempo duraram, até que fase chegaram e o que encerrou cada partida. Depois ele dá uma volta invencível de 3 minutos em cada fase e conta quantas vezes cada obstáculo aparece por minuto, o tempo entre um perigo e outro e quanto tempo a tela fica vazia. Leva cerca de meio minuto.
 
 Para o GitHub só aceitar merge com os testes passando: **Settings → Branches → Add branch ruleset** na `main`, com "Require status checks to pass" marcando `Site e servidor` e `App Expo`.
 
