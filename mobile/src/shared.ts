@@ -3,10 +3,12 @@
 export * from '../../src/game/engine'
 export { GAME_MODES, GAME_MODE_ORDER, RUNNER_TUNING, TOUCH_BUTTON_LABELS } from '../../src/data/gameModes'
 export { ARTIST_INFO } from '../../src/data/graffitiArtists'
-export { CHECKPOINT_TIP, CONTINUES_PER_CHECKPOINT, PHASES, checkpointKey } from '../../src/data/phases'
+export { CHECKPOINT_TIP, CONTINUES_PER_CHECKPOINT, PHASE_BANNER_MS, PHASES, checkpointKey, phaseBannerTip, phaseTip } from '../../src/data/phases'
+export { hasTheirSignature, pickGameArtist, theirSignatureId } from '../../src/data/encounters'
 export { LOCAL_BOARD_KEY, addLocalScore, localTop, parseLocalBoard, type LocalScore } from '../../src/data/scoreBoard'
 export { ARTIST_SIGNATURES } from '../../src/data/artistSignatures'
-export { SLAM_MS } from '../../src/game/config'
+export { CONE_SPACING, CONE_WIDTH, SLAM_MS } from '../../src/game/config'
+export { PERSON_SIZE, personPixels } from '../../src/data/pixelPerson'
 export { SLAM_FIRE_SHARE, SLAM_SHAKE_UNTIL, SLAM_STICKER_UNTIL, slamPose } from '../../src/data/slam'
 export {
   ROUTE_BOX,

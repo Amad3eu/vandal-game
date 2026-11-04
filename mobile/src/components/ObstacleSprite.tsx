@@ -1,19 +1,26 @@
-import { Image, View } from 'react-native'
-import { ARTIST_INFO, type Obstacle } from '../shared'
+import { Image, Text, View } from 'react-native'
+import { ARTIST_INFO, type GraffitiArtist, type Obstacle } from '../shared'
 import { INTRO_TAG, INTRO_WALL, POWER_JUMP, POWER_LIGHTNING, SPRAY_FRAMES, TRAIN_FRAMES } from '../sprites'
+import PixelPerson from './PixelPerson'
+import { ConesArt, DuckBarArt, RampArt } from './StreetArt'
 
 interface ObstacleSpriteProps {
   obstacle: Obstacle
   clock: number
   /** How much of the intro wall's tag is painted (0..1). */
   tagProgress?: number
+  /** Who a graffiti artist on the street is (picked by the game screen; the engine's draw otherwise). */
+  artist?: GraffitiArtist
 }
 
 const at = (x: number, y: number, width: number, height: number) =>
   ({ position: 'absolute', left: x, top: y, width, height }) as const
 
+/** Obstacles sit 8px above the ground line; what stands on the street is drawn down to it. */
+const GROUND_GAP = 8
+
 // Positions mirror the web's Obstacle.css so hitboxes and drawings line up the same way.
-export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: ObstacleSpriteProps) {
+export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1, artist }: ObstacleSpriteProps) {
   switch (o.type) {
     case 'wall': {
       // Brick wall from the intro, with the tag painted in from the left (like the web's clip-path).
@@ -38,14 +45,39 @@ export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: 
         />
       )
 
-    case 'train':
-      // The drawn roof lines up with the platform top (where the player's feet are drawn).
+    case 'train': {
+      // A car as long as its box, its drawn roof (10% down the image) at the box top.
+      const width = o.width * 1.12
       return (
         <Image
           source={TRAIN_FRAMES[Math.floor(clock / 120) % TRAIN_FRAMES.length]}
           fadeDuration={0}
-          style={at(o.x + o.width / 2 - 112, o.y - 3, 224, 112)}
+          style={at(o.x + o.width / 2 - width / 2, o.y - width * 0.05, width, width / 2)}
         />
+      )
+    }
+
+    case 'ramp':
+      // The slope is the box's diagonal (where the player walks); the base reaches the street.
+      return (
+        <View style={at(o.x, o.y, o.width, o.height + GROUND_GAP)}>
+          <RampArt id={o.id} width={o.width} height={o.height + GROUND_GAP} />
+        </View>
+      )
+
+    case 'cone':
+      return (
+        <View style={at(o.x, o.y + GROUND_GAP, o.width, o.height)}>
+          <ConesArt width={o.width} height={o.height} />
+        </View>
+      )
+
+    case 'duck-bar':
+      // The chains go up out of the box, toward the top of the screen.
+      return (
+        <View style={at(o.x, o.y - 400, o.width, o.height + 400)}>
+          <DuckBarArt width={o.width} height={o.height} />
+        </View>
       )
 
     case 'floating-platform': {
@@ -151,17 +183,31 @@ export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: 
     }
 
     case 'graffiti-artist': {
-      const color = o.graffitiArtist ? ARTIST_INFO[o.graffitiArtist].color : '#FF6B6B'
-      const pulse = 1 + 0.05 * Math.sin(clock / 190)
-      const part = (style: object) => <View style={[{ position: 'absolute', backgroundColor: color }, style]} />
+      // A little pixel-art person standing on the street, bobbing, with a puff of paint from the
+      // can; once met, they wave as the player runs past.
+      const id = artist ?? o.graffitiArtist ?? 'remo'
+      const color = ARTIST_INFO[id].color
+      const bob = Math.floor(clock / 550) % 2 === 0 ? 0 : -2
+      const puff = (clock % 900) / 900
+      const left = o.x + o.width / 2 - 31
+      const top = o.y + o.height + GROUND_GAP - 89 + bob
       return (
-        <View style={[at(o.x, o.y, o.width, o.height), { borderRadius: o.width / 2, borderWidth: 2, borderColor: 'rgba(0,0,0,0.1)', transform: [{ scale: pulse }] }]}>
-          {part({ left: 28, top: 8, width: 25, height: 25, borderRadius: 13 })}
-          {part({ left: 30, top: 32, width: 20, height: 24, borderRadius: 3 })}
-          {part({ left: 12, top: 36, width: 12, height: 18, borderRadius: 6, transform: [{ rotate: '-30deg' }] })}
-          {part({ right: 12, top: 36, width: 12, height: 18, borderRadius: 6, transform: [{ rotate: '30deg' }] })}
-          {part({ left: 18, top: 54, width: 10, height: 16, borderRadius: 3 })}
-          {part({ right: 18, top: 54, width: 10, height: 16, borderRadius: 3 })}
+        <View style={at(left, top, 62, 89)}>
+          <PixelPerson id={id} color={color} width={62} height={89} />
+          {o.met && <Text style={{ position: 'absolute', left: 17, top: -30, fontSize: 24 }}>👋</Text>}
+          <View
+            style={{
+              position: 'absolute',
+              left: 56 + 6 * puff,
+              top: 6 - 6 * puff,
+              width: 16,
+              height: 16,
+              borderRadius: 8,
+              backgroundColor: color,
+              opacity: 0.85 * (1 - puff),
+              transform: [{ scale: 0.4 + 1.2 * puff }],
+            }}
+          />
         </View>
       )
     }
@@ -180,7 +226,7 @@ export default function ObstacleSprite({ obstacle: o, clock, tagProgress = 1 }: 
     }
 
     default:
-      // cactus and duck-bar are never spawned by the engine today.
+      // cactus is never spawned by the engine today.
       return null
   }
 }
