@@ -119,11 +119,23 @@
   border-top-color: #8f98aa;
 }
 
+/* Metrô (phase 2): two rails along the street. */
+.game-container.phase-2 .scene-ground {
+  background:
+    linear-gradient(180deg, transparent 22%, #a9b3c4 22% 25%, #39404c 25% 27%, transparent 27% 58%, #a9b3c4 58% 61%, #39404c 61% 63%, transparent 63%),
+    linear-gradient(180deg, #4d5361 0%, #363c48 42%, #23282f 100%);
+}
+
+/* Telhados (phase 3): the city turns purple. */
+.game-container.phase-3 .background-image-layer.night {
+  filter: hue-rotate(28deg) saturate(1.25);
+}
+
 /* Grabbing a checkpoint flag: the new phase, for a moment, in the middle of the screen. */
 .phase-banner {
   position: absolute;
   left: 50%;
-  top: 22%;
+  top: 15%;
   z-index: 6;
   display: flex;
   flex-direction: column;
@@ -133,12 +145,16 @@
   border: 3px solid var(--ink);
   border-radius: 16px;
   box-shadow: 6px 6px 0 #000;
-  background: rgba(31, 17, 71, 0.92);
+  background: rgba(31, 17, 71, 0.86);
   color: #fff;
   text-align: center;
   pointer-events: none;
   transform: translateX(-50%);
-  animation: phaseBanner 2.6s ease-in-out forwards;
+  /* Its own width (left: 50% alone would cap it at half the screen and wrap the tip thin). */
+  width: max-content;
+  max-width: min(90vw, 520px);
+  /* Duration: PHASE_BANNER_MS, set inline. */
+  animation: phaseBanner 4s ease-in-out forwards;
 }
 
 .phase-banner-kicker {
@@ -159,6 +175,35 @@
   color: #c7d2fe;
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+/* What's different in this phase. */
+.phase-banner-tip {
+  color: var(--spray-yellow);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Phones on their side: a smaller banner, so the street stays in view. */
+@media (max-height: 480px) {
+  .phase-banner {
+    top: 16%;
+    gap: 2px;
+    padding: 8px 18px;
+  }
+
+  .phase-banner-kicker {
+    font-size: 0.7rem;
+  }
+
+  .phase-banner-title {
+    font-size: 1.25rem;
+  }
+
+  .phase-banner-note,
+  .phase-banner-tip {
+    font-size: 0.8rem;
+  }
 }
 
 @keyframes phaseBanner {

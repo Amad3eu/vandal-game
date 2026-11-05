@@ -32,7 +32,8 @@ export const MAX_CATCH_UP_MS = 100
 /** Rules version, saved in run logs: bump it when a change alters how a run plays out. */
 // 2: skate pickups spawn again and a crash with one is a SLAM
 // 3: a signature only counts during an encounter, one per encounter, and can be a real artist's id
-export const ENGINE_VERSION = 3
+// 4: bigger trains with a solid front and ramps, traffic cones, hanging beams to duck under
+export const ENGINE_VERSION = 4
 /** The floor starts at 76% of the world height (matches the 24% ground strip of the web view). */
 export const GROUND_RATIO = 0.76
 
@@ -58,14 +59,50 @@ export const LIGHTNING_DURATION_MS = 3000
 export const JUMP_BOOST_DURATION_MS = 4500
 export const JUMP_BOOST_MULTIPLIER = 1.2
 export const DUCK_HEIGHT = 80
-export const BIRD_ALTITUDE = 104 // bird top above the ground: duck under it or jump over it
+export const BIRD_ALTITUDE = 104 // high bird's top above the ground: flies at head height, duck under it
+export const BIRD_LOW_ALTITUDE = 62 // low bird's top: skims the street, jump over it (like a spray)
 export const TRAMPOLINE_BOOST = 1.12
 export const COIN_SCORE = 25
 export const OBSTACLE_PASSED_SCORE = 100
 export const GRAFFITI_SIGNATURE_SCORE = 150
 export const POWERUP_SIZE = 84
-export const TRAIN_PLATFORM_WIDTH = 240
-export const TRAIN_PLATFORM_HEIGHT = 80
+/** One train car. Taller than the player: get on with a well-timed jump or up a ramp. */
+export const TRAIN_PLATFORM_WIDTH = 300
+export const TRAIN_PLATFORM_HEIGHT = 130
+/** Ramp up to a train roof, in front of the first car (its slope rises toward the train). */
+export const RAMP_WIDTH = 180
+/** Share of train lines that come with a ramp. */
+export const RAMP_CHANCE = 0.6
+/** Runner: frames of empty street before a train without a ramp (its jump starts early). */
+export const TRAIN_RUNWAY_FRAMES = 24
+/** Runner: room after a train line to drop off its roof before the next obstacle. */
+export const TRAIN_DROP_FRAMES = 30
+/** How far below the slope the player can be and still step onto it (more than a frame of rise). */
+export const RAMP_STEP = 16
+/** Traffic cones: low, in groups of 1 to 3 (a short or a long jump). */
+export const CONE_WIDTH = 30
+export const CONE_HEIGHT = 46
+export const CONE_SPACING = 6
+/** Construction beam hanging over the street: its lower edge is this high (duck under it)... */
+export const DUCK_BAR_CLEARANCE = 80
+/** ...and it reaches this high, so a jump hits it. */
+export const DUCK_BAR_TOP = 300
+export const DUCK_BAR_WIDTH = 76
+/**
+ * What makes each phase its own, as [Rua, Metrô, Telhados]. The Rua has cones, sprays and low
+ * pigeons and few trains; the Metrô is where the trains are (more lines, and longer); on the
+ * Telhados the pigeons come back, with the tall buildings.
+ */
+export const PHASE_MIX = {
+  /** Chance of a train line at each spawn. */
+  trainLine: [0.12, 0.34, 0.16],
+  /** Fewest cars in a line (up to 4). */
+  minCars: [1, 2, 1],
+  /** Chance of a group of cones among the street obstacles. */
+  cones: [0.3, 0.24, 0.18],
+  /** Chance of a pigeon among the street obstacles. */
+  birds: [0.28, 0.18, 0.42],
+}
 // Runner: extra frames of room after obstacles that keep the player in the air longer than a
 // normal jump (a wall-jump over a building, a trampoline bounce).
 export const BUILDING_EXTRA_AIRTIME_FRAMES = 40
@@ -73,15 +110,16 @@ export const TRAMPOLINE_EXTRA_AIRTIME_FRAMES = 30
 
 // --- Phase system (Fase 1 Rua / Fase 2 Metrô / Fase 3 Telhados) ---
 // From these scores a climb of floating platforms shows up with a checkpoint flag on top.
-// Grabbing the flag opens the phase, and a game over can continue from there.
-export const PHASE_2_SCORE = 1200
-export const PHASE_3_SCORE = 3500
+// Grabbing the flag opens the phase, and a game over can continue from there. Playing well that's
+// the Metrô at about 45s and the Telhados at about 1m50 (npm run playtest measures it).
+export const PHASE_2_SCORE = 2500
+export const PHASE_3_SCORE = 9000
 export const CHECKPOINT_BONUS = 250
 /** A missed climb comes back after this many other obstacles. */
 export const CLIMB_RETRY_SPAWNS = 5
 /** Steps up to the flag: the climb to the rooftops (phase 3) is one step higher. */
 export const CLIMB_STEPS: Record<2 | 3, number> = { 2: 4, 3: 5 }
-export const CLIMB_FIRST_STEP = 88 // first step's top above the ground (as high as a train)
+export const CLIMB_FIRST_STEP = 88 // first step's top above the ground (one jump from the street)
 export const CLIMB_STEP_RISE = 80
 // Step sizes in frames of running, turned into pixels with the speed when the climb shows up:
 // a jump covers more ground when faster, so fixed widths would leave almost no time to jump

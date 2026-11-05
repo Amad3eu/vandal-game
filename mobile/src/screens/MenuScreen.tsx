@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { CHECKPOINT_TIP, GAME_MODES, GAME_MODE_ORDER, PHASES, formatDistance, localTop, type Checkpoint, type GameMode, type LocalScore } from '../shared'
+import { CHECKPOINT_TIP, GAME_MODES, GAME_MODE_ORDER, PHASES, formatDistance, phaseTip, localTop, type Checkpoint, type GameMode, type LocalScore } from '../shared'
 import type { SavedProgress } from '../storage'
 import { NIGHT_BACKGROUND, RUN_FRAMES } from '../sprites'
 import { COLORS, FONTS, UI } from '../theme'
@@ -243,7 +243,13 @@ export default function MenuScreen({
           </View>
         ))}
         <View style={styles.tips}>
-          {['Desvie dos obstáculos para marcar pontos.', `${CHECKPOINT_TIP}.`, 'Encontre grafiteiros para trocar assinaturas.', `${modeInfo.tip}.`].map(
+          {[
+            'Desvie dos obstáculos para marcar pontos.',
+            `${CHECKPOINT_TIP}.`,
+            ...([1, 2, 3] as const).map((phase) => `${phaseTip(phase)}.`),
+            'Encontre grafiteiros para trocar assinaturas.',
+            `${modeInfo.tip}.`,
+          ].map(
             (tip) => (
               <Text key={tip} style={styles.tip}>
                 • {tip}

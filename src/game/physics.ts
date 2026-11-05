@@ -101,8 +101,8 @@ export function approach(value: number, target: number, step: number) {
 }
 
 /**
- * Free mode: buildings are solid walls. Clamps a horizontal move so the player stops at a
- * building face, and reports the side that was hit (1 = wall on the right, -1 = on the left).
+ * Free mode: buildings and train cars are solid walls. Clamps a horizontal move so the player
+ * stops at their face, and reports the side that was hit (1 = wall on the right, -1 = on the left).
  */
 export function moveAgainstBuildings(dino: DinosaurState, dx: number, obstacles: Obstacle[]) {
   let move = dx
@@ -112,7 +112,7 @@ export function moveAgainstBuildings(dino: DinosaurState, dx: number, obstacles:
   const bottom = dino.y + dino.height
 
   for (const building of obstacles) {
-    if (building.type !== 'building' || building.knocked) continue
+    if ((building.type !== 'building' && building.type !== 'train') || building.knocked) continue
     if (bottom <= building.y + ROOF_STEP_TOLERANCE) continue // on (or above) the roof
 
     const wallLeft = building.x + 4

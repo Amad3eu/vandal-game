@@ -98,6 +98,24 @@ export function nameSignature(name: string, color: string) {
 }
 
 /**
+ * Which of the game's own artists shows up when no real artist fits (web and app): the one the
+ * engine drew, or else one the player hasn't met in this run, preferably one not on the street
+ * already. Null when the player met them all: whoever shows up then just waves.
+ */
+export function pickGameArtist(drawn: GraffitiArtist, met: Set<ArtistId>, onStreet: Set<ArtistId> = new Set()): GraffitiArtist | null {
+  const order = [drawn, ...(Object.keys(ARTIST_INFO) as GraffitiArtist[]).filter((id) => id !== drawn)]
+  const unmet = order.filter((id) => !met.has(id))
+  return unmet.find((id) => !onStreet.has(id)) ?? unmet[0] ?? null
+}
+
+/** Start of the blackbook id of an artist's own signature: there's one per artist (web and app). */
+export const theirSignatureId = (artistId: ArtistId) => `${artistId}-sig-`
+
+/** The blackbook already has this artist's signature (meeting them again adds no copy). */
+export const hasTheirSignature = (arts: Pick<GraffitiArt, 'id'>[], artistId: ArtistId) =>
+  arts.some((art) => art.id.startsWith(theirSignatureId(artistId)))
+
+/**
  * Picks who shows up at an encounter, among the real artists already unlocked (their phase
  * reached and their score beaten) and not met yet in this run: first someone whose signature
  * the player doesn't have yet. Null means none fits (none unlocked, or all met in this run):

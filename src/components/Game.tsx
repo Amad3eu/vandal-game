@@ -13,8 +13,19 @@ import { SLAM_SHAKE_UNTIL } from '../data/slam'
 import Blackbook from './Blackbook'
 import { useGameInput } from '../hooks/useGameInput'
 import { GAME_MODES, RUNNER_TUNING } from '../data/gameModes'
-import { PHASES } from '../data/phases'
-import { artOwner, gameArtist, isGameArtist, nameSignature, pickEncounterArtist, type EncounterArtist, type RosterArtist } from '../data/encounters'
+import { PHASE_BANNER_MS, PHASES, phaseBannerTip } from '../data/phases'
+import {
+  artOwner,
+  gameArtist,
+  hasTheirSignature,
+  isGameArtist,
+  nameSignature,
+  pickEncounterArtist,
+  pickGameArtist,
+  theirSignatureId,
+  type EncounterArtist,
+  type RosterArtist,
+} from '../data/encounters'
 import {
   advanceGame,
   awardSignature,
@@ -36,8 +47,6 @@ import nightBackground from '../assets/background/7.png'
 import themeTrack from '../assets/soundtrack/SonoTWS - Tired Of People Act II - SonoTWS (youtube).mp3'
 import './Game.css'
 
-/** How long the "new phase" banner stays up after grabbing a checkpoint flag. */
-const PHASE_BANNER_MS = 2600
 /** How long the cop's grab shows before the game over menu. */
 const CAUGHT_MS = 1300
 
@@ -173,10 +182,14 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
       if (obstacle.type !== 'graffiti-artist' || assigned.has(obstacle.id)) continue
       const collected = new Set(blackbookRef.current.filter((art) => art.type === 'artist-signature').map((art) => art.artist))
       // Nobody twice on the street at once, and nobody the player already met in this run.
-      const taken = new Set([...metThisRun.current, ...[...assigned.values()].map((artist) => artist.id)])
+      const onStreet = new Set([...assigned.values()].map((artist) => artist.id))
+      const taken = new Set([...metThisRun.current, ...onStreet])
+      const drawn = obstacle.graffitiArtist ?? 'remo'
+      // When the player already met everyone in this run, it's someone met before: they wave
+      // and the run goes on (see the 'artist' event below).
       const artist =
         pickEncounterArtist(rosterRef.current, { phase: engine.phase, score: engine.score, collected, metThisRun: taken }) ??
-        gameArtist(obstacle.graffitiArtist ?? 'remo')
+        gameArtist(pickGameArtist(drawn, metThisRun.current, onStreet) ?? drawn)
       assigned.set(obstacle.id, artist)
     }
   }, [engine])
@@ -190,9 +203,11 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     // Ask right away if the player wants to draw their signature; the artist's one lands in the
     // blackbook as soon as its image is ready.
     setInteractionStage('signature-choice')
+    // Their signature goes in once: meeting them again (in another run) doesn't add a copy.
+    if (hasTheirSignature(blackbookRef.current, currentArtist.id)) return
     const imageData = await signatureImage(currentArtist)
     const artistSig: GraffitiArt = {
-      id: `${currentArtist.id}-sig-${Date.now()}`,
+      id: `${theirSignatureId(currentArtist.id)}${Date.now()}`,
       ...ownerFields(currentArtist),
       type: 'artist-signature',
       imageData,
@@ -200,6 +215,13 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
     }
     blackbookRef.current = [...blackbookRef.current, artistSig]
     setBlackbook([...blackbookRef.current])
+    // Saved right away too: the run may be over, and this screen gone, by the time the image loads.
+    try {
+      const saved: GraffitiArt[] = JSON.parse(localStorage.getItem('dinoGameBlackbook') ?? '[]')
+      if (!hasTheirSignature(saved, currentArtist.id)) localStorage.setItem('dinoGameBlackbook', JSON.stringify([...saved, artistSig]))
+    } catch {
+      // Storage full or blocked: it still shows until the page is closed.
+    }
   }, [currentArtist])
 
   const endEncounter = useCallback(() => {
@@ -293,6 +315,10 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
         } else if (event.type === 'artist') {
           // Pause and start the interaction; endEncounter resumes the engine.
           const artist = (engine.artistEncounterId !== null && encounterArtists.current.get(engine.artistEncounterId)) || gameArtist(event.artist)
+          if (metThisRun.current.has(artist.id)) {
+            resumeGame(engine) // met already in this run: no second stop
+            continue
+          }
           metThisRun.current.add(artist.id)
           setCurrentArtist(artist)
           setInteractionStage('dialog')
@@ -432,7 +458,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
         </div>
 
         {showPhaseBanner && (
-          <div className="phase-banner" key={phase} role="status">
+          <div className="phase-banner" key={phase} role="status" style={{ animationDuration: `${PHASE_BANNER_MS}ms` }}>
             <span className="phase-banner-kicker">🚩 Checkpoint!</span>
             <strong className="phase-banner-title">
               {PHASES[phase].emoji} Fase {phase} · {PHASES[phase].name}
@@ -440,6 +466,7 @@ export default function Game({ mode, highScore, selectedMusic, checkpoint = null
             <span className="phase-banner-note">
               {continuedHere ? 'Continuando do checkpoint' : '+250 pontos · checkpoint salvo'}
             </span>
+            <span className="phase-banner-tip">{phaseBannerTip(phase)}</span>
           </div>
         )}
 

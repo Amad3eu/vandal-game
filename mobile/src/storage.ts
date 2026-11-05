@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { GAME_MODES, LOCAL_BOARD_KEY, parseLocalBoard, type GameMode, type GraffitiArt, type LocalScore, type RunLog } from './shared'
+import { GAME_MODES, LOCAL_BOARD_KEY, hasTheirSignature, parseLocalBoard, type GameMode, type GraffitiArt, type LocalScore, type RunLog } from './shared'
 
 // Same keys as the web version's localStorage.
 const MODE_KEY = 'dinoGameMode'
@@ -56,8 +56,10 @@ export async function loadLocalBoard(): Promise<LocalScore[]> {
 
 export const saveLocalBoard = (board: LocalScore[]) => save(LOCAL_BOARD_KEY, JSON.stringify(board))
 
+/** Adds to the blackbook; an artist's signature goes in once (meeting them again adds no copy). */
 export async function addToBlackbook(art: GraffitiArt) {
   const saved = await AsyncStorage.getItem(BLACKBOOK_KEY).catch(() => null)
   const arts: GraffitiArt[] = saved ? JSON.parse(saved) : []
+  if (art.type === 'artist-signature' && hasTheirSignature(arts, art.artist)) return
   save(BLACKBOOK_KEY, JSON.stringify([...arts, art]))
 }

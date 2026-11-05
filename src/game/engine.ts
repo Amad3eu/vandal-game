@@ -69,6 +69,9 @@ import {
   OBSTACLE_PASSED_SCORE,
   PHASE_2_SCORE,
   PHASE_3_SCORE,
+  PHASE_MIX,
+  RAMP_STEP,
+  TRAIN_DROP_FRAMES,
   ROOF_STEP_TOLERANCE,
   SKATE_DURATION_MS,
   RECOVER_MS,
@@ -404,16 +407,17 @@ export function resizeWorld(state: GameState, width: number, height: number) {
   state.config = { ...state.config, groundLevel }
   state.cameraY = 0
   state.obstacles = state.obstacles.map((obs) => ({ ...obs, y: obs.y + groundShift }))
+  // The player moves with them, standing up: on a train roof they stay on it (its cars are solid).
   const size = state.config.playerSize
+  const bottom = Math.min(groundLevel, state.player.y + state.player.height + groundShift)
   state.player = {
     ...state.player,
-    y: groundLevel - size,
-    velocityY: 0,
-    isJumping: false,
+    y: bottom - size,
     isDucking: false,
     width: size,
     height: size,
   }
+  state.jumpTakeoffY += groundShift // a jump going on keeps its minimum height
 }
 
 /** The phase whose checkpoint climb is due (the score is there but its flag isn't), if any. */
@@ -523,6 +527,17 @@ export function awardSignature(state: GameState, artist: ArtistId) {
   return true
 }
 
+/** The ramp and cars of the train line a car belongs to: the pieces that touch end to end. */
+function trainLine(obstacles: Obstacle[], car: Obstacle) {
+  const pieces = obstacles.filter((obs) => obs.type === 'train' || obs.type === 'ramp').sort((a, b) => a.x - b.x)
+  const touching = (a: Obstacle, b: Obstacle) => Math.abs(a.x + a.width - b.x) < 1
+  let first = pieces.indexOf(car)
+  let last = first
+  while (first > 0 && touching(pieces[first - 1], pieces[first])) first--
+  while (last < pieces.length - 1 && touching(pieces[last], pieces[last + 1])) last++
+  return pieces.slice(first, last + 1)
+}
+
 // Things you can touch without dying (pickups, platforms, buildings are handled separately).
 function isHazard(obs: Obstacle) {
   return (
@@ -533,10 +548,12 @@ function isHazard(obs: Obstacle) {
     obs.type !== 'power-jump' &&
     obs.type !== 'floating-platform' &&
     obs.type !== 'train' &&
+    obs.type !== 'ramp' &&
     obs.type !== 'building' &&
     obs.type !== 'trampoline' &&
     obs.type !== 'checkpoint' &&
-    obs.type !== 'wall'
+    obs.type !== 'wall' &&
+    obs.type !== 'graffiti-artist'
   )
 }
 
@@ -708,7 +725,25 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   }
 
   let onPlatform = false
-  for (const platform of state.obstacles) {
+  // A ramp carries the player up its slope to a train roof. Measured at the player's front, so
+  // they reach the roof's height by the time they get to the train.
+  for (const ramp of state.obstacles) {
+    if (ramp.type !== 'ramp' || ramp.knocked) continue
+    const front = player.x + player.width - 6
+    if (front < ramp.x || player.x + 6 > ramp.x + ramp.width) continue
+    const progress = Math.min(1, Math.max(0, (front - ramp.x) / ramp.width))
+    const surface = ramp.y + ramp.height * (1 - progress)
+    const bottom = player.y + player.height
+    const prevBottom = previous.y + previous.height
+    // Not while jumping off it (going up); a few px of rise per frame is still "on the slope".
+    if (player.velocityY >= 0 && bottom >= surface - 2 && prevBottom <= surface + RAMP_STEP) {
+      player = { ...player, y: surface - player.height, velocityY: 0, isJumping: false }
+      onPlatform = true
+      state.jumpsUsed = 0
+      break
+    }
+  }
+  for (const platform of onPlatform ? [] : state.obstacles) {
     if (platform.knocked || (platform.type !== 'floating-platform' && platform.type !== 'train' && platform.type !== 'building')) {
       continue
     }
@@ -726,6 +761,24 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
       onPlatform = true
       state.jumpsUsed = 0
       break
+    }
+  }
+
+  // Train cars are solid: a player who got past a front at street level while invincible
+  // (dash, lightning, getting back up) climbs onto the roof instead of running inside the car.
+  if (!onPlatform && mode === 'runner' && invincible && !slamming) {
+    const car = state.obstacles.find(
+      (obs) =>
+        obs.type === 'train' &&
+        !obs.knocked &&
+        player.x + player.width - 6 > obs.x + 10 &&
+        player.x + 6 < obs.x + obs.width - 6 &&
+        player.y + player.height > obs.y + 14
+    )
+    if (car) {
+      player = { ...player, y: car.y - player.height, velocityY: 0, isJumping: false }
+      onPlatform = true
+      state.jumpsUsed = 0
     }
   }
 
@@ -852,7 +905,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     const climbPhase = state.climbCooldown === 0 ? dueClimb(state) : null
     const shouldSpawnPath =
       state.score >= 500 &&
-      state.random() < 0.18 &&
+      state.random() < PHASE_MIX.trainLine[state.phase - 1] &&
       !state.obstacles.some((obs) => obs.type === 'floating-platform' || obs.type === 'train')
 
     const gap = getSpawnGap(state, effectiveSpeed)
@@ -866,11 +919,9 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
     } else if (shouldSpawnPath) {
       // Nothing else spawns until the whole train line has scrolled in.
       const path = createFloatingPath(state)
-      const pathLength = path
-        .filter((obs) => obs.type === 'train')
-        .reduce((length, train) => length + train.width, 0)
-      state.obstacles = [...state.obstacles, ...path]
-      state.nextSpawnGap = pathLength + gap
+      state.obstacles = [...state.obstacles, ...path.obstacles]
+      const dropRoom = mode === 'runner' ? effectiveSpeed * TRAIN_DROP_FRAMES : 0
+      state.nextSpawnGap = path.length + dropRoom + gap
       state.climbCooldown = Math.max(0, state.climbCooldown - 1)
     } else {
       const obstacle = createObstacle(state)
@@ -909,13 +960,13 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
         return []
       }
 
-      if (obs.type === 'graffiti-artist' && checkCollision(player, obs)) {
+      if (obs.type === 'graffiti-artist' && !obs.met && checkCollision(player, obs)) {
         if (obs.graffitiArtist && state.artistEncounterId === null) {
           state.artistEncounterId = obs.id
           state.encounterSigned = false
           encounteredArtist = obs.graffitiArtist
         }
-        return []
+        return { ...obs, met: true, passed: true }
       }
 
       if (obs.type === 'checkpoint' && !obs.reached && checkCollision(player, obs)) {
@@ -969,6 +1020,7 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
           obs.type !== 'trampoline' &&
           obs.type !== 'floating-platform' &&
           obs.type !== 'train' &&
+          obs.type !== 'ramp' &&
           obs.type !== 'checkpoint' &&
           obs.type !== 'wall' &&
           obs.type !== 'coin' &&
@@ -1015,11 +1067,15 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   // ground level), never when landing on the roof or gripping the face. In the free
   // mode buildings are solid walls instead, so they never kill.
   const embedded = (obs: Obstacle) => {
-    if (mode !== 'runner' || obs.type !== 'building' || obs.knocked) return false
+    if (mode !== 'runner' || obs.knocked) return false
     const dLeft = player.x + 6
     const dRight = player.x + player.width - 6
     const dBottom = player.y + player.height
-    return dRight > obs.x + 10 && dLeft < obs.x + obs.width - 6 && dBottom > obs.y + 44
+    if (obs.type === 'building') return dRight > obs.x + 10 && dLeft < obs.x + obs.width - 6 && dBottom > obs.y + 44
+    // A train's front is solid: running into it below the roof is a crash. Only its front: a
+    // player dropping off the back of the last car lands behind it.
+    if (obs.type === 'train') return dRight > obs.x + 10 && dLeft < obs.x + 20 && dBottom > obs.y + 14
+    return false
   }
   const hits = invincible
     ? []
@@ -1030,7 +1086,8 @@ export function stepGame(state: GameState, input: HeldInput, deltaMs: number): G
   let slammed = false
   if (hits.length > 0 && state.skateMs > 0) {
     slammed = true
-    const knocked = new Set(hits.map((obs) => obs.id))
+    // Into a train, the whole line goes (ramp and cars): the player goes down at street level.
+    const knocked = new Set(hits.flatMap((obs) => (obs.type === 'train' ? trainLine(state.obstacles, obs) : [obs])).map((obs) => obs.id))
     state.obstacles = state.obstacles.map((obs) => (knocked.has(obs.id) ? { ...obs, knocked: true } : obs))
     state.skateMs = 0
     state.slamMs = SLAM_MS

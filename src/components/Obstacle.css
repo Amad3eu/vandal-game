@@ -125,45 +125,13 @@
 }
 
 .obstacle-spray .spray-sprite,
-.obstacle-cactus .spray-sprite,
-.obstacle-duck-bar .spray-sprite {
+.obstacle-cactus .spray-sprite {
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.24));
 }
 
-.obstacle-duck-bar {
-  background: transparent;
-}
-
-.duck-bar-beam {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 38%;
-  background: linear-gradient(90deg, #7a5a2f 0%, #a57b3f 100%);
-  border-radius: 5px;
-}
-
-.duck-bar-leg {
-  position: absolute;
-  top: 34%;
-  width: 12%;
-  height: 66%;
-  background: #6b4d29;
-  border-radius: 3px;
-}
-
-.duck-bar-leg-left {
-  left: 8%;
-}
-
-.duck-bar-leg-right {
-  right: 8%;
-}
-
+/* Trains stand still on the street: the roof is drawn exactly where the player lands. */
 .obstacle-train {
   background: transparent;
-  animation: platformFloat 1.2s ease-in-out infinite;
   overflow: visible;
 }
 
@@ -272,16 +240,15 @@
   }
 }
 
-/* The roof drawn in the sprite (10% down the image) sits where the player's feet are drawn
-   on the platform (8px below its top), so riding the train looks grounded. */
+/* The car's pixel art (100x50, content 89x44) scaled so its roof meets the box top and its
+   wheels stand on the street. */
 .train-sprite {
   position: absolute;
   left: 50%;
   top: 0;
-  width: 110%;
+  width: 112%;
   height: auto;
-  max-height: 140%;
-  transform: translate(-50%, -3px);
+  transform: translate(-50%, -17px);
   object-fit: contain;
   object-position: center top;
   image-rendering: pixelated;
@@ -507,16 +474,6 @@
   }
 }
 
-@keyframes platformFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
 @keyframes trampolinePulse {
   0%,
   100% {
@@ -549,10 +506,7 @@
 
 .obstacle-graffiti-artist {
   background: transparent;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-  animation: graffitiPulse 1.2s ease-in-out infinite;
+  overflow: visible;
 }
 
 .graffiti-artist {
@@ -564,7 +518,8 @@
   position: relative;
 }
 
-.artist-kind-icon {
+.artist-kind-icon,
+.artist-wave {
   position: absolute;
   top: -30px;
   left: 50%;
@@ -578,76 +533,6 @@
 @keyframes artistIconBob {
   50% {
     transform: translate(-50%, -4px);
-  }
-}
-
-.artist-head {
-  position: absolute;
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.artist-body {
-  position: absolute;
-  width: 20px;
-  height: 24px;
-  border-radius: 3px;
-  top: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.artist-arm {
-  position: absolute;
-  width: 12px;
-  height: 18px;
-  border-radius: 50%;
-  top: 36px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.artist-arm-left {
-  left: 12px;
-  transform: rotate(-30deg);
-}
-
-.artist-arm-right {
-  right: 12px;
-  transform: rotate(30deg);
-}
-
-.artist-leg {
-  position: absolute;
-  width: 10px;
-  height: 16px;
-  border-radius: 3px;
-  top: 54px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.artist-leg-left {
-  left: 18px;
-}
-
-.artist-leg-right {
-  right: 18px;
-}
-
-@keyframes graffitiPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0.1));
-  }
-  50% {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.2));
   }
 }
 
@@ -709,4 +594,90 @@
   background: radial-gradient(circle at 40% 35%, #ffe89b, #d89a2e);
   box-shadow: 0 0 6px rgba(255, 210, 120, 0.5);
   opacity: 0.85;
+}
+
+/* ---- Version 4 obstacles (placeholder art until real sprites come) ---- */
+.obstacle-ramp,
+.obstacle-cone,
+.obstacle-duck-bar {
+  background: transparent;
+  overflow: visible;
+}
+
+/* Obstacles sit 8px above the ground line: these drawings reach down to the street (the
+   ramp's base grows by 8px, so its slope stays where the player walks). */
+.ramp-sprite,
+.cones-sprite {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: calc(100% + 8px);
+  overflow: visible;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.25));
+}
+
+.cones-sprite {
+  height: 100%;
+  transform: translateY(8px);
+}
+
+/* The chains go up out of the box, toward the top of the screen. */
+.duck-bar-sprite {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: calc(100% + 400px);
+  overflow: visible;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.3));
+}
+
+.artist-person {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 62px;
+  height: 89px;
+  transform: translateX(-50%);
+  animation: personIdle 1.1s steps(2, jump-none) infinite;
+}
+
+@keyframes personIdle {
+  50% {
+    transform: translate(-50%, -2px);
+  }
+}
+
+/* A puff of paint from the graffiti artist's can. */
+.artist-spray-mist {
+  position: absolute;
+  right: -10px;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  opacity: 0.7;
+  filter: blur(2px);
+  animation: sprayPuff 0.9s ease-out infinite;
+}
+
+@keyframes sprayPuff {
+  from {
+    transform: scale(0.4) translate(0, 0);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(1.6) translate(6px, -6px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artist-person,
+  .artist-spray-mist,
+  .artist-kind-icon,
+  .artist-wave {
+    animation: none;
+  }
 }

@@ -48,7 +48,7 @@ var BASE_CONFIG = {
 };
 var FRAME_TIME = 1e3 / 60;
 var TICK_MS = FRAME_TIME;
-var ENGINE_VERSION = 3;
+var ENGINE_VERSION = 4;
 var GROUND_RATIO = 0.76;
 var MIN_WORLD_WIDTH = 820;
 var MIN_WORLD_HEIGHT = 560;
@@ -68,17 +68,39 @@ var JUMP_BOOST_DURATION_MS = 4500;
 var JUMP_BOOST_MULTIPLIER = 1.2;
 var DUCK_HEIGHT = 80;
 var BIRD_ALTITUDE = 104;
+var BIRD_LOW_ALTITUDE = 62;
 var TRAMPOLINE_BOOST = 1.12;
 var COIN_SCORE = 25;
 var OBSTACLE_PASSED_SCORE = 100;
 var GRAFFITI_SIGNATURE_SCORE = 150;
 var POWERUP_SIZE = 84;
-var TRAIN_PLATFORM_WIDTH = 240;
-var TRAIN_PLATFORM_HEIGHT = 80;
+var TRAIN_PLATFORM_WIDTH = 300;
+var TRAIN_PLATFORM_HEIGHT = 130;
+var RAMP_WIDTH = 180;
+var RAMP_CHANCE = 0.6;
+var TRAIN_RUNWAY_FRAMES = 24;
+var TRAIN_DROP_FRAMES = 30;
+var RAMP_STEP = 16;
+var CONE_WIDTH = 30;
+var CONE_HEIGHT = 46;
+var CONE_SPACING = 6;
+var DUCK_BAR_CLEARANCE = 80;
+var DUCK_BAR_TOP = 300;
+var DUCK_BAR_WIDTH = 76;
+var PHASE_MIX = {
+  /** Chance of a train line at each spawn. */
+  trainLine: [0.12, 0.34, 0.16],
+  /** Fewest cars in a line (up to 4). */
+  minCars: [1, 2, 1],
+  /** Chance of a group of cones among the street obstacles. */
+  cones: [0.3, 0.24, 0.18],
+  /** Chance of a pigeon among the street obstacles. */
+  birds: [0.28, 0.18, 0.42]
+};
 var BUILDING_EXTRA_AIRTIME_FRAMES = 40;
 var TRAMPOLINE_EXTRA_AIRTIME_FRAMES = 30;
-var PHASE_2_SCORE = 1200;
-var PHASE_3_SCORE = 3500;
+var PHASE_2_SCORE = 2500;
+var PHASE_3_SCORE = 9e3;
 var CHECKPOINT_BONUS = 250;
 var CLIMB_RETRY_SPAWNS = 5;
 var CLIMB_STEPS = { 2: 4, 3: 5 };
@@ -175,7 +197,7 @@ function moveAgainstBuildings(dino, dx, obstacles) {
   const right = dino.x + dino.width - WALL_CONTACT_INSET_X;
   const bottom = dino.y + dino.height;
   for (const building of obstacles) {
-    if (building.type !== "building" || building.knocked) continue;
+    if (building.type !== "building" && building.type !== "train" || building.knocked) continue;
     if (bottom <= building.y + ROOF_STEP_TOLERANCE) continue;
     const wallLeft = building.x + 4;
     const wallRight = building.x + building.width - 4;
@@ -226,10 +248,10 @@ function getSpawnGap(state, speed) {
   const lerp = ([start, end]) => start + (end - start) * progress;
   const minMs = lerp(RUNNER_TUNING.minGapMs);
   const maxMs = lerp(RUNNER_TUNING.maxGapMs);
-  return speed * ((minMs + state.random() * (maxMs - minMs)) / FRAME_TIME);
+  const rangeFactor = 1 - 0.25 * (state.phase - 1);
+  return speed * ((minMs + state.random() * (maxMs - minMs) * rangeFactor) / FRAME_TIME);
 }
 function spacingAfter(state, obstacle, speed) {
-  if (obstacle.type === "train") return obstacle.width;
   if (state.mode !== "runner") return 0;
   if (obstacle.type === "building") return obstacle.width + speed * BUILDING_EXTRA_AIRTIME_FRAMES;
   if (obstacle.type === "trampoline") return speed * TRAMPOLINE_EXTRA_AIRTIME_FRAMES;
@@ -238,13 +260,40 @@ function spacingAfter(state, obstacle, speed) {
 function createFloatingPath(state) {
   const startX = state.worldWidth + 20;
   const y = state.config.groundLevel - TRAIN_PLATFORM_HEIGHT - 8;
-  const trainCount = 2 + Math.floor(state.random() * 3);
+  const minCars = PHASE_MIX.minCars[state.phase - 1];
+  const trainCount = minCars + Math.floor(state.random() * (5 - minCars));
+  const withRamp = state.random() < RAMP_CHANCE;
+  const runway = withRamp ? 0 : state.mode === "runner" ? state.effectiveSpeed * TRAIN_RUNWAY_FRAMES : 0;
+  const trainsX = startX + runway + (withRamp ? RAMP_WIDTH : 0);
   const totalWidth = TRAIN_PLATFORM_WIDTH * trainCount;
   const spawned = [];
+  if (withRamp) {
+    spawned.push({
+      id: state.nextObstacleId++,
+      x: startX,
+      y,
+      width: RAMP_WIDTH,
+      height: TRAIN_PLATFORM_HEIGHT,
+      type: "ramp",
+      passed: false
+    });
+    for (let c = 1; c <= 3; c += 1) {
+      const along = c / 4 * RAMP_WIDTH;
+      spawned.push({
+        id: state.nextObstacleId++,
+        x: startX + along - 9,
+        y: y + TRAIN_PLATFORM_HEIGHT * (1 - along / RAMP_WIDTH) - 52,
+        width: 18,
+        height: 18,
+        type: "coin",
+        passed: false
+      });
+    }
+  }
   for (let i = 0; i < trainCount; i += 1) {
     spawned.push({
       id: state.nextObstacleId++,
-      x: startX + i * TRAIN_PLATFORM_WIDTH,
+      x: trainsX + i * TRAIN_PLATFORM_WIDTH,
       y,
       width: TRAIN_PLATFORM_WIDTH,
       height: TRAIN_PLATFORM_HEIGHT,
@@ -252,11 +301,11 @@ function createFloatingPath(state) {
       passed: false
     });
   }
-  const coinCount = 4;
+  const coinCount = 2 + trainCount * 2;
   for (let c = 0; c < coinCount; c += 1) {
     spawned.push({
       id: state.nextObstacleId++,
-      x: startX + 40 + c * Math.floor((totalWidth - 80) / coinCount),
+      x: trainsX + 40 + c * Math.floor((totalWidth - 80) / coinCount),
       y: y - 34,
       width: 18,
       height: 18,
@@ -267,14 +316,14 @@ function createFloatingPath(state) {
   const powerType = state.random() < 0.55 ? "power-lightning" : "power-jump";
   spawned.push({
     id: state.nextObstacleId++,
-    x: startX + totalWidth * 0.52,
+    x: trainsX + totalWidth * 0.52,
     y: y - 54,
     width: POWERUP_SIZE,
     height: POWERUP_SIZE,
     type: powerType,
     passed: false
   });
-  return spawned;
+  return { obstacles: spawned, length: trainsX + totalWidth - startX };
 }
 function createClimb(state, phase, speed) {
   const startX = state.worldWidth + 20;
@@ -380,14 +429,14 @@ function createObstacle(state) {
       passed: false
     };
   }
-  if (state.score >= 520 && random() < 0.1) {
+  if (state.score >= 700 && random() < 0.14 + 0.04 * (state.phase - 1)) {
     return {
       id: state.nextObstacleId++,
       x,
-      y: groundLevel - TRAIN_PLATFORM_HEIGHT - 8,
-      width: TRAIN_PLATFORM_WIDTH,
-      height: TRAIN_PLATFORM_HEIGHT,
-      type: "train",
+      y: groundLevel - DUCK_BAR_TOP,
+      width: DUCK_BAR_WIDTH,
+      height: DUCK_BAR_TOP - DUCK_BAR_CLEARANCE,
+      type: "duck-bar",
       passed: false
     };
   }
@@ -402,6 +451,7 @@ function createObstacle(state) {
       passed: false
     };
   }
+  if (random() < PHASE_MIX.cones[state.phase - 1]) return createCones(state, x);
   if (state.score >= 280 && random() < 0.22) {
     const size2 = 80;
     return {
@@ -415,18 +465,20 @@ function createObstacle(state) {
     };
   }
   const canSpawnBird = state.score >= 400;
-  const spawnBird = canSpawnBird && random() < 0.28;
+  const spawnBird = canSpawnBird && random() < PHASE_MIX.birds[state.phase - 1];
   if (spawnBird) {
+    const low = random() < 0.5;
     return {
       id: state.nextObstacleId++,
       x,
-      y: groundLevel - BIRD_ALTITUDE,
+      y: groundLevel - (low ? BIRD_LOW_ALTITUDE : BIRD_ALTITUDE),
       width: 46,
       height: 28,
       type: "bird",
       passed: false
     };
   }
+  if (state.score < 280) return createCones(state, x);
   const size = 80;
   return {
     id: state.nextObstacleId++,
@@ -435,6 +487,19 @@ function createObstacle(state) {
     width: size,
     height: size,
     type: "spray",
+    passed: false
+  };
+}
+function createCones(state, x) {
+  const most = state.score < 800 ? 1 : state.score < 2e3 ? 2 : 3;
+  const count = 1 + Math.floor(state.random() * most);
+  return {
+    id: state.nextObstacleId++,
+    x,
+    y: state.config.groundLevel - CONE_HEIGHT - 8,
+    width: count * CONE_WIDTH + (count - 1) * CONE_SPACING,
+    height: CONE_HEIGHT,
+    type: "cone",
     passed: false
   };
 }
@@ -569,15 +634,15 @@ function resizeWorld(state, width, height) {
   state.cameraY = 0;
   state.obstacles = state.obstacles.map((obs) => ({ ...obs, y: obs.y + groundShift }));
   const size = state.config.playerSize;
+  const bottom = Math.min(groundLevel, state.player.y + state.player.height + groundShift);
   state.player = {
     ...state.player,
-    y: groundLevel - size,
-    velocityY: 0,
-    isJumping: false,
+    y: bottom - size,
     isDucking: false,
     width: size,
     height: size
   };
+  state.jumpTakeoffY += groundShift;
 }
 function dueClimb(state) {
   if (state.phase === 1 && state.score >= PHASE_2_SCORE) return 2;
@@ -660,8 +725,17 @@ function awardSignature(state, artist) {
   state.encounterSigned = true;
   return true;
 }
+function trainLine(obstacles, car) {
+  const pieces = obstacles.filter((obs) => obs.type === "train" || obs.type === "ramp").sort((a, b) => a.x - b.x);
+  const touching = (a, b) => Math.abs(a.x + a.width - b.x) < 1;
+  let first = pieces.indexOf(car);
+  let last = first;
+  while (first > 0 && touching(pieces[first - 1], pieces[first])) first--;
+  while (last < pieces.length - 1 && touching(pieces[last], pieces[last + 1])) last++;
+  return pieces.slice(first, last + 1);
+}
 function isHazard(obs) {
-  return !obs.knocked && obs.type !== "skate" && obs.type !== "coin" && obs.type !== "power-lightning" && obs.type !== "power-jump" && obs.type !== "floating-platform" && obs.type !== "train" && obs.type !== "building" && obs.type !== "trampoline" && obs.type !== "checkpoint" && obs.type !== "wall";
+  return !obs.knocked && obs.type !== "skate" && obs.type !== "coin" && obs.type !== "power-lightning" && obs.type !== "power-jump" && obs.type !== "floating-platform" && obs.type !== "train" && obs.type !== "ramp" && obs.type !== "building" && obs.type !== "trampoline" && obs.type !== "checkpoint" && obs.type !== "wall" && obs.type !== "graffiti-artist";
 }
 function updateChaser(state, player, scroll, deltaFactor) {
   const chaser = state.chaser;
@@ -770,7 +844,22 @@ function stepGame(state, input, deltaMs) {
     player = { ...player, x: ridden ? ridden.x - player.width + 2 : BASE_X + state.dashLunge + state.introOffset };
   }
   let onPlatform = false;
-  for (const platform of state.obstacles) {
+  for (const ramp of state.obstacles) {
+    if (ramp.type !== "ramp" || ramp.knocked) continue;
+    const front = player.x + player.width - 6;
+    if (front < ramp.x || player.x + 6 > ramp.x + ramp.width) continue;
+    const progress = Math.min(1, Math.max(0, (front - ramp.x) / ramp.width));
+    const surface = ramp.y + ramp.height * (1 - progress);
+    const bottom = player.y + player.height;
+    const prevBottom = previous.y + previous.height;
+    if (player.velocityY >= 0 && bottom >= surface - 2 && prevBottom <= surface + RAMP_STEP) {
+      player = { ...player, y: surface - player.height, velocityY: 0, isJumping: false };
+      onPlatform = true;
+      state.jumpsUsed = 0;
+      break;
+    }
+  }
+  for (const platform of onPlatform ? [] : state.obstacles) {
     if (platform.knocked || platform.type !== "floating-platform" && platform.type !== "train" && platform.type !== "building") {
       continue;
     }
@@ -786,6 +875,16 @@ function stepGame(state, input, deltaMs) {
       onPlatform = true;
       state.jumpsUsed = 0;
       break;
+    }
+  }
+  if (!onPlatform && mode === "runner" && invincible && !slamming) {
+    const car = state.obstacles.find(
+      (obs) => obs.type === "train" && !obs.knocked && player.x + player.width - 6 > obs.x + 10 && player.x + 6 < obs.x + obs.width - 6 && player.y + player.height > obs.y + 14
+    );
+    if (car) {
+      player = { ...player, y: car.y - player.height, velocityY: 0, isJumping: false };
+      onPlatform = true;
+      state.jumpsUsed = 0;
     }
   }
   state.wallCling = false;
@@ -888,7 +987,7 @@ function stepGame(state, input, deltaMs) {
   state.spawnDistance += scroll;
   if (state.spawnDistance >= state.nextSpawnGap) {
     const climbPhase = state.climbCooldown === 0 ? dueClimb(state) : null;
-    const shouldSpawnPath = state.score >= 500 && state.random() < 0.18 && !state.obstacles.some((obs) => obs.type === "floating-platform" || obs.type === "train");
+    const shouldSpawnPath = state.score >= 500 && state.random() < PHASE_MIX.trainLine[state.phase - 1] && !state.obstacles.some((obs) => obs.type === "floating-platform" || obs.type === "train");
     const gap = getSpawnGap(state, effectiveSpeed);
     if (climbPhase) {
       const climb = createClimb(state, climbPhase, mode === "free" ? FREE_TUNING.walkSpeed : effectiveSpeed);
@@ -898,9 +997,9 @@ function stepGame(state, input, deltaMs) {
       state.climbCooldown = CLIMB_RETRY_SPAWNS;
     } else if (shouldSpawnPath) {
       const path = createFloatingPath(state);
-      const pathLength = path.filter((obs) => obs.type === "train").reduce((length, train) => length + train.width, 0);
-      state.obstacles = [...state.obstacles, ...path];
-      state.nextSpawnGap = pathLength + gap;
+      state.obstacles = [...state.obstacles, ...path.obstacles];
+      const dropRoom = mode === "runner" ? effectiveSpeed * TRAIN_DROP_FRAMES : 0;
+      state.nextSpawnGap = path.length + dropRoom + gap;
       state.climbCooldown = Math.max(0, state.climbCooldown - 1);
     } else {
       const obstacle = createObstacle(state);
@@ -930,13 +1029,13 @@ function stepGame(state, input, deltaMs) {
       events.push({ type: "coin" });
       return [];
     }
-    if (obs.type === "graffiti-artist" && checkCollision(player, obs)) {
+    if (obs.type === "graffiti-artist" && !obs.met && checkCollision(player, obs)) {
       if (obs.graffitiArtist && state.artistEncounterId === null) {
         state.artistEncounterId = obs.id;
         state.encounterSigned = false;
         encounteredArtist = obs.graffitiArtist;
       }
-      return [];
+      return { ...obs, met: true, passed: true };
     }
     if (obs.type === "checkpoint" && !obs.reached && checkCollision(player, obs)) {
       reachedPhase = obs.phase ?? null;
@@ -968,7 +1067,7 @@ function stepGame(state, input, deltaMs) {
       return [];
     }
     if (!obs.passed && obs.x + obs.width < player.x) {
-      if (!obs.knocked && obs.type !== "skate" && obs.type !== "trampoline" && obs.type !== "floating-platform" && obs.type !== "train" && obs.type !== "checkpoint" && obs.type !== "wall" && obs.type !== "coin" && obs.type !== "power-lightning" && obs.type !== "power-jump") {
+      if (!obs.knocked && obs.type !== "skate" && obs.type !== "trampoline" && obs.type !== "floating-platform" && obs.type !== "train" && obs.type !== "ramp" && obs.type !== "checkpoint" && obs.type !== "wall" && obs.type !== "coin" && obs.type !== "power-lightning" && obs.type !== "power-jump") {
         state.score += OBSTACLE_PASSED_SCORE;
       }
       return { ...obs, passed: true };
@@ -999,17 +1098,19 @@ function stepGame(state, input, deltaMs) {
     return events;
   }
   const embedded = (obs) => {
-    if (mode !== "runner" || obs.type !== "building" || obs.knocked) return false;
+    if (mode !== "runner" || obs.knocked) return false;
     const dLeft = player.x + 6;
     const dRight = player.x + player.width - 6;
     const dBottom = player.y + player.height;
-    return dRight > obs.x + 10 && dLeft < obs.x + obs.width - 6 && dBottom > obs.y + 44;
+    if (obs.type === "building") return dRight > obs.x + 10 && dLeft < obs.x + obs.width - 6 && dBottom > obs.y + 44;
+    if (obs.type === "train") return dRight > obs.x + 10 && dLeft < obs.x + 20 && dBottom > obs.y + 14;
+    return false;
   };
   const hits = invincible ? [] : state.obstacles.filter((obs) => embedded(obs) || isHazard(obs) && checkCollision(player, obs));
   let slammed = false;
   if (hits.length > 0 && state.skateMs > 0) {
     slammed = true;
-    const knocked = new Set(hits.map((obs) => obs.id));
+    const knocked = new Set(hits.flatMap((obs) => obs.type === "train" ? trainLine(state.obstacles, obs) : [obs]).map((obs) => obs.id));
     state.obstacles = state.obstacles.map((obs) => knocked.has(obs.id) ? { ...obs, knocked: true } : obs);
     state.skateMs = 0;
     state.slamMs = SLAM_MS;

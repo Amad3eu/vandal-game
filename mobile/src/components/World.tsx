@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Image, StyleSheet, Text, View } from 'react-native'
-import { SLAM_MS, SLAM_SHAKE_UNTIL, type GameView, type Obstacle } from '../shared'
+import { SLAM_MS, SLAM_SHAKE_UNTIL, type GameView, type GraffitiArtist, type Obstacle } from '../shared'
 import { DAY_BACKGROUND, NIGHT_BACKGROUND } from '../sprites'
 import { COLORS, FONTS, UI } from '../theme'
 import ChaserSprite, { CaughtCop } from './ChaserSprite'
@@ -53,9 +53,11 @@ interface WorldProps {
   moving: boolean
   /** Game over: how far the cop's grab has gone (0..1), or null while playing. */
   caughtProgress: number | null
+  /** Who each artist on the street is, by obstacle id. */
+  artists: Map<number, GraffitiArtist>
 }
 
-export default function World({ view, clock, width, height, scale, groundLevel, facing, moving, caughtProgress }: WorldProps) {
+export default function World({ view, clock, width, height, scale, groundLevel, facing, moving, caughtProgress, artists }: WorldProps) {
   const { player } = view
   const night = view.phase >= 2
   const blend = view.phase === 2 ? Math.min(1, view.phaseMs / NIGHT_FADE_MS) : night ? 1 : 0
@@ -70,6 +72,8 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
       {/* Explicit size: without it a bundled image keeps its own 2304x1296 size instead of covering. */}
       <Image source={DAY_BACKGROUND} resizeMode="cover" style={[styles.background, { width, height, opacity: 1 - blend }]} />
       <Image source={NIGHT_BACKGROUND} resizeMode="cover" style={[styles.background, { width, height, opacity: blend }]} />
+      {/* Telhados (phase 3): the city turns purple (the web uses a hue-rotate filter). */}
+      {view.phase === 3 && <View style={[styles.background, { width, height, backgroundColor: 'rgba(150, 60, 200, 0.16)' }]} />}
       {/* Floor, obstacles and player move down together when the camera follows the player up. */}
       <View style={[styles.scene, { width, height, transform: [{ translateX: shakeX }, { translateY: view.cameraY + shakeY }] }]}>
         <View
@@ -82,14 +86,18 @@ export default function World({ view, clock, width, height, scale, groundLevel, 
               borderTopColor: night ? COLORS.groundEdgeNight : COLORS.groundEdge,
             },
           ]}
-        />
+        >
+          {/* Metrô (phase 2): two rails along the street. */}
+          {view.phase === 2 &&
+            (['22%', '58%'] as const).map((top) => <View key={top} style={[styles.rail, { top }]} />)}
+        </View>
         {view.obstacles.map((obstacle) =>
           obstacle.knocked ? (
             <Knocked key={obstacle.id} obstacle={obstacle} elapsedMs={slamMs ?? 750}>
-              <ObstacleSprite obstacle={{ ...obstacle, x: 0, y: 0 }} clock={clock} tagProgress={view.tagProgress} />
+              <ObstacleSprite obstacle={{ ...obstacle, x: 0, y: 0 }} clock={clock} tagProgress={view.tagProgress} artist={artists.get(obstacle.id)} />
             </Knocked>
           ) : (
-            <ObstacleSprite key={obstacle.id} obstacle={obstacle} clock={clock} tagProgress={view.tagProgress} />
+            <ObstacleSprite key={obstacle.id} obstacle={obstacle} clock={clock} tagProgress={view.tagProgress} artist={artists.get(obstacle.id)} />
           )
         )}
         {view.chaser && caughtProgress === null && <ChaserSprite chaser={view.chaser} groundLevel={groundLevel} clock={clock} />}
@@ -150,6 +158,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     borderTopWidth: 6,
+  },
+  rail: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: '#a9b3c4',
+    borderBottomWidth: 2,
+    borderBottomColor: '#39404c',
   },
   mist: {
     position: 'absolute',

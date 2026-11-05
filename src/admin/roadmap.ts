@@ -30,7 +30,7 @@ export interface Decision {
 }
 
 export const REPO_URL = 'https://github.com/Amad3eu/vandal-game'
-export const ROADMAP_UPDATED = '2026-09-28'
+export const ROADMAP_UPDATED = '2026-10-30'
 
 export const VISION =
   'Um runner de plataforma em pixel art com a cultura hip-hop brasileira: grafite, DJs, MCs e breaking. Referência de ritmo no Subway Surfers, com cara de jogo indie. Primeiro um beta caprichado e monetizável com anúncios; depois jogadores de verdade, placar e artistas reais dentro do jogo.'
@@ -151,6 +151,67 @@ export const PHASES: RoadmapPhase[] = [
     ],
   },
   {
+    id: 'jogo',
+    title: 'Dinâmica de jogo',
+    goal: 'Um jogo menos cru: obstáculos que pedem movimentos diferentes e coisas para colecionar',
+    items: [
+      {
+        title: 'Trens maiores e sólidos, com rampa para subir pela lateral',
+        status: 'feito',
+        detail: 'Composições de 1 a 4 vagões, com moedas no teto; bater na frente encerra a partida.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      {
+        title: 'Obstáculos novos: cones, tapume de obra e pombos baixos e altos',
+        status: 'feito',
+        detail: 'Cada um pede um movimento: pular os cones e o pombo baixo, abaixar no tapume e no pombo alto.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      {
+        title: 'Grafiteiros, DJs e MCs como bonequinhos em pixel art na calçada',
+        status: 'feito',
+        detail: 'No site e no app. Desenho provisório até chegarem os sprites.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      {
+        title: 'Cada fase com a sua cara e o seu tempo',
+        status: 'feito',
+        detail: 'Rua com cones e pombos, Metrô com muito mais trem e trilhos no chão, Telhados com prédios e a cidade roxa. Antes o Metrô durava 22 segundos; agora dura cerca de 1 minuto.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      {
+        title: 'Artistas não repetem na mesma partida nem duplicam no blackbook',
+        status: 'feito',
+        detail: 'Achado jogando uma partida gravada em vídeo.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      {
+        title: 'Playtest com robô (npm run playtest)',
+        status: 'feito',
+        detail: 'Centenas de partidas por perfil de jogador: quanto duram, em que momento cada fase começa, o que encerra cada partida e o ritmo dos obstáculos.',
+        pr: 16,
+        date: '2026-10-30',
+      },
+      { title: 'Loja de latas de spray com as moedas da corrida', status: 'proximo' },
+      {
+        title: 'Peças de uma câmera fotográfica para coletar na corrida',
+        status: 'proximo',
+        detail: 'Juntando as peças, o personagem ganha a câmera.',
+      },
+      {
+        title: 'Murais de grafite pelo caminho e botão de fotografar',
+        status: 'proximo',
+        detail: 'As fotos ficam numa galeria e dá para compartilhar no Instagram, Facebook e outros.',
+      },
+      { title: 'Sprites finais dos obstáculos novos e dos artistas', status: 'ideia', detail: 'Hoje são desenhos provisórios feitos em código.' },
+    ],
+  },
+  {
     id: 'publicacao',
     title: 'Publicação e monetização',
     goal: 'Levar o jogo para mais gente e pagar os custos',
@@ -192,6 +253,12 @@ export const PHASES: RoadmapPhase[] = [
 ]
 
 export const DECISIONS: Decision[] = [
+  {
+    date: '2026-10-30',
+    title: 'Balancear o jogo com um robô',
+    choice: 'Antes de mexer em obstáculos, um robô joga centenas de partidas em perfis de jogador (perfeito, experiente e iniciante).',
+    why: 'Mostra o que encerra as partidas e onde o jogo fica vazio, sem achismo; o ajuste fino continua sendo jogando de verdade.',
+  },
   {
     date: '2026-09-28',
     title: 'Quem aparece no encontro é escolhido pelo site',

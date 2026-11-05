@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { ARTIST_INFO } from '../src/data/graffitiArtists'
-import { artOwner, fromRoster, gameArtist, isGameArtist, nameSignature, pickEncounterArtist, type RosterArtist } from '../src/data/encounters'
+import {
+  artOwner,
+  fromRoster,
+  gameArtist,
+  hasTheirSignature,
+  isGameArtist,
+  nameSignature,
+  pickEncounterArtist,
+  pickGameArtist,
+  theirSignatureId,
+  type RosterArtist,
+} from '../src/data/encounters'
 
 const artist = (id: string, patch: Partial<RosterArtist> = {}): RosterArtist => ({
   id,
@@ -36,6 +47,24 @@ describe('who shows up in an encounter (src/data/encounters.ts)', () => {
 
   it("doesn't repeat someone in the same run: the game's own artist shows up instead", () => {
     expect(pick([artist('a')], { met: ['a'] })).toBeNull()
+  })
+
+  it("the game's own artists don't repeat in a run either", () => {
+    const game = (drawn: 'remo' | 'pixo' | 'nina', met: string[], onStreet: string[] = []) => pickGameArtist(drawn, new Set(met), new Set(onStreet))
+    expect(game('remo', [])).toBe('remo') // the one the engine drew
+    expect(game('remo', ['remo'])).toBe('pixo') // already met: another one
+    expect(game('remo', ['remo', 'pixo'])).toBe('nina')
+    expect(game('remo', ['remo', 'pixo', 'nina'])).toBeNull() // met everyone: they just wave
+    // Not met but already on the street: someone else, if there's anyone left.
+    expect(game('pixo', ['remo'], ['pixo'])).toBe('nina')
+    // Everyone not met is on the street: one of them shows up twice rather than someone met.
+    expect(game('pixo', ['remo'], ['pixo', 'nina'])).toBe('pixo')
+  })
+
+  it("an artist's signature goes in the blackbook once", () => {
+    const book = [{ id: `${theirSignatureId('remo')}1700000000000` }, { id: 'pixo-signature-1700000000001' }]
+    expect(hasTheirSignature(book, 'remo')).toBe(true)
+    expect(hasTheirSignature(book, 'pixo')).toBe(false) // the player's own drawing for Pixo isn't Pixo's signature
   })
 
   it('an empty roster (offline) gives the game its own artists', () => {
