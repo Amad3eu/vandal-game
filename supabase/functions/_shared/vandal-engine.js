@@ -48,7 +48,7 @@ var BASE_CONFIG = {
 };
 var FRAME_TIME = 1e3 / 60;
 var TICK_MS = FRAME_TIME;
-var ENGINE_VERSION = 2;
+var ENGINE_VERSION = 3;
 var GROUND_RATIO = 0.76;
 var MIN_WORLD_WIDTH = 820;
 var MIN_WORLD_HEIGHT = 560;
@@ -529,7 +529,8 @@ function createGameState({
     } : null,
     paused: false,
     gameOver: false,
-    artistEncounterId: null
+    artistEncounterId: null,
+    encounterSigned: false
   };
   state.nextSpawnGap = getSpawnGap(state, state.speed) * 0.5;
   if (withIntro) {
@@ -652,10 +653,11 @@ function resumeGame(state) {
   state.artistEncounterId = null;
 }
 function awardSignature(state, artist) {
-  if (state.signatures.includes(artist)) return false;
+  if (state.artistEncounterId === null || state.encounterSigned || state.signatures.includes(artist)) return false;
   logEvent(state, { tick: state.tick, type: "signature", artist });
   state.score += GRAFFITI_SIGNATURE_SCORE;
   state.signatures = [...state.signatures, artist];
+  state.encounterSigned = true;
   return true;
 }
 function isHazard(obs) {
@@ -931,6 +933,7 @@ function stepGame(state, input, deltaMs) {
     if (obs.type === "graffiti-artist" && checkCollision(player, obs)) {
       if (obs.graffitiArtist && state.artistEncounterId === null) {
         state.artistEncounterId = obs.id;
+        state.encounterSigned = false;
         encounteredArtist = obs.graffitiArtist;
       }
       return [];
@@ -1040,7 +1043,7 @@ function stepGame(state, input, deltaMs) {
 }
 
 // src/game/replay.ts
-function replayRun(log) {
+function replayRun(log, { canSign } = {}) {
   const state = createGameState({
     mode: log.mode,
     width: log.width,
@@ -1060,8 +1063,9 @@ function replayRun(log) {
       else if (event.type === "jumpEnd") releaseJump(state);
       else if (event.type === "dash") pressDash(state);
       else if (event.type === "resume") resumeGame(state);
-      else if (event.type === "signature") awardSignature(state, event.artist);
-      else if (event.type === "resize") resizeWorld(state, event.width, event.height);
+      else if (event.type === "signature") {
+        if (!canSign || canSign(event.artist, state)) awardSignature(state, event.artist);
+      } else if (event.type === "resize") resizeWorld(state, event.width, event.height);
     }
     if (state.paused) break;
     stepGame(state, held, TICK_MS);
@@ -1069,8 +1073,8 @@ function replayRun(log) {
   }
   return state;
 }
-function verifyRun(log) {
-  const state = replayRun(log);
+function verifyRun(log, options) {
+  const state = replayRun(log, options);
   return { valid: state.gameOver && state.tick === log.endTick && state.score === log.score, score: state.score, tick: state.tick };
 }
 
@@ -1086,7 +1090,10 @@ var LIMITS = {
   maxWorld: 4e3
 };
 var EVENT_TYPES = /* @__PURE__ */ new Set(["held", "jump", "jumpEnd", "dash", "resume", "signature", "resize"]);
-var ARTISTS = /* @__PURE__ */ new Set(["remo", "pixo", "nina"]);
+var GAME_ARTISTS = /* @__PURE__ */ new Set(["remo", "pixo", "nina"]);
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var isUuid = (value) => typeof value === "string" && UUID.test(value);
+var isArtistId = (value) => typeof value === "string" && (GAME_ARTISTS.has(value) || isUuid(value));
 var isInt = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 var isWorldSize = (width, height) => typeof width === "number" && typeof height === "number" && width >= MIN_WORLD_WIDTH - 1 && height >= MIN_WORLD_HEIGHT - 1 && width <= LIMITS.maxWorld && height <= LIMITS.maxWorld;
 function isRunLog(value) {
@@ -1106,12 +1113,12 @@ function isRunLog(value) {
       const held = event.held;
       if (!held || typeof held.left !== "boolean" || typeof held.right !== "boolean" || typeof held.down !== "boolean") return false;
     }
-    if (event.type === "signature" && !ARTISTS.has(event.artist)) return false;
+    if (event.type === "signature" && !isArtistId(event.artist)) return false;
     if (event.type === "resize" && !isWorldSize(event.width, event.height)) return false;
   }
   return true;
 }
-function checkSubmission(log, seed, userId, now = Date.now()) {
+function checkSubmission(log, seed, userId, now = Date.now(), artists = /* @__PURE__ */ new Map()) {
   const fail = (reason) => ({ ok: false, reason });
   if (!seed) return fail("seed-unknown");
   if (seed.user_id !== userId) return fail("seed-not-yours");
@@ -1125,7 +1132,15 @@ function checkSubmission(log, seed, userId, now = Date.now()) {
   const endTick = log.endTick;
   if (endTick > LIMITS.maxRunMinutes * 6e4 / TICK_MS) return fail("too-long");
   if (endTick * TICK_MS > now - issuedAt + LIMITS.slackMs) return fail("too-fast");
-  const replay = verifyRun(log);
+  for (const event of log.events) {
+    if (event.type === "signature" && !GAME_ARTISTS.has(event.artist) && !artists.has(event.artist)) return fail("unknown-artist");
+  }
+  const replay = verifyRun(log, {
+    canSign: (artist, state) => {
+      const rule = artists.get(artist);
+      return !rule || state.phase >= rule.phase && state.score >= rule.minScore;
+    }
+  });
   if (!replay.valid) return fail("replay-mismatch");
   return { ok: true, score: replay.score, endTick: replay.tick };
 }
@@ -1137,6 +1152,7 @@ export {
   TICK_MS,
   checkSubmission,
   isRunLog,
+  isUuid,
   replayRun,
   verifyRun
 };

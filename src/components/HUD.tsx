@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react'
-import { GameMode, GraffitiArtist } from '../types/game'
-import { ARTIST_INFO } from '../data/graffitiArtists'
+import { GameMode } from '../types/game'
 import { PHASES } from '../data/phases'
 import './HUD.css'
 
@@ -15,7 +14,8 @@ interface HUDProps {
   skateTimeLeftMs?: number
   lightningTimeLeftMs?: number
   jumpBoostTimeLeftMs?: number
-  signatures?: GraffitiArtist[]
+  /** Artists signed in this run (name and color for the dots). */
+  signatures?: { id: string; name: string; color: string }[]
   blackbookCount?: number
   onOpenBlackbook?: () => void
   phase?: 1 | 2 | 3
@@ -105,13 +105,8 @@ export default function HUD({
         <div className="hud-sticker hud-signatures hud-optional" aria-label="Assinaturas desta corrida">
           <small>Assinaturas</small>
           <span className="signature-dots">
-            {(Object.keys(ARTIST_INFO) as GraffitiArtist[]).map((artist) => (
-              <span
-                key={artist}
-                title={ARTIST_INFO[artist].name}
-                className={`signature-dot ${signatures.includes(artist) ? 'collected' : ''}`}
-                style={{ '--artist': ARTIST_INFO[artist].color } as CSSProperties}
-              />
+            {signatures.map((artist) => (
+              <span key={artist.id} title={artist.name} className="signature-dot collected" style={{ '--artist': artist.color } as CSSProperties} />
             ))}
           </span>
         </div>

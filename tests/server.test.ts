@@ -5,6 +5,7 @@ import { parseAdmins } from '../server/leaderboard/admin'
 import { createAdminStore } from '../server/leaderboard/admin-db'
 import { createApp, type AppOptions } from '../server/leaderboard/app'
 import { createStore } from '../server/leaderboard/db'
+import { awardSignature } from '../src/game/engine'
 import { createServerOnline, type TokenStore } from '../src/online/server'
 import { playRun } from './helpers/bot'
 
@@ -146,6 +147,56 @@ describe.skipIf(!DATABASE_URL)('leaderboard server', () => {
       expect(rows[0].used_at).toBeNull() // refused runs don't burn the seed
     })
 
+    it('refuses signatures of artists it does not know, or signed outside an encounter', async () => {
+      const { call } = await startServer()
+      const { token } = await newPlayer(call)
+      const known = (await call('POST', '/admin/artists', { token: LUIZ, body: { name: 'DJ Beco', kind: 'dj' } })).json
+      const submitWith = async (artist: string) => {
+        const ticket = (await call('POST', '/v1/runs', { token, body: { mode: 'runner' } })).json
+        await age(ticket.seedId)
+        const { log } = playRun(ticket.seed)
+        const forged = { ...log, events: [{ tick: 1, type: 'signature', artist }, ...log.events], score: (log.score ?? 0) + 150 }
+        return (await call('POST', '/v1/runs/submit', { token, body: { seedId: ticket.seedId, log: forged } })).json
+      }
+      expect(await submitWith('0f0f0f0f-0000-4000-8000-000000000000')).toEqual({ accepted: false, reason: 'unknown-artist' })
+      expect(await submitWith(known.id)).toEqual({ accepted: false, reason: 'replay-mismatch' })
+    })
+
+    it('keeps an honest run valid when an admin changes the artists during it', async () => {
+      const { call } = await startServer()
+      const { token } = await newPlayer(call)
+      const dj = (await call('POST', '/admin/artists', { token: LUIZ, body: { name: 'DJ Beco', kind: 'dj' } })).json
+      const mc = (await call('POST', '/admin/artists', { token: LUIZ, body: { name: 'MC Laje', kind: 'mc' } })).json
+      // A seed where the player meets someone, and signs the artist the site picked.
+      const played = (artist: string) => {
+        for (let seed = 1; seed < 300; seed++) {
+          let met = false
+          const run = playRun(seed, { onArtist: (state) => void (met = awardSignature(state, artist) || met) })
+          if (met) return { seed, log: run.log }
+        }
+        throw new Error('no seed with an encounter')
+      }
+      const start = async () => {
+        const ticket = (await call('POST', '/v1/runs', { token, body: { mode: 'runner' } })).json
+        await age(ticket.seedId)
+        return ticket.seedId as string
+      }
+      const submit = async (seedId: string, run: { seed: number; log: unknown }) => {
+        await pool.query('update run_seeds set seed = $2 where id = $1', [seedId, run.seed]) // the test picks the seed
+        return (await call('POST', '/v1/runs/submit', { token, body: { seedId, log: run.log } })).json
+      }
+
+      const deletedRun = await start()
+      const lockedRun = await start()
+      await call('DELETE', `/admin/artists/${dj.id}`, { token: GUIME }) // removed during the run
+      await call('PUT', `/admin/artists/${mc.id}`, { token: GUIME, body: { ...mc, minScore: 999_999 } }) // locked during the run
+      expect(await submit(deletedRun, played(dj.id))).toMatchObject({ accepted: true })
+      expect(await submit(lockedRun, played(mc.id))).toMatchObject({ accepted: true })
+
+      // A run started after the change is checked against the new rules.
+      expect(await submit(await start(), played(mc.id))).toEqual({ accepted: false, reason: 'replay-mismatch' })
+    })
+
     it('saves only one of several submissions of the same run at once', async () => {
       const { call } = await startServer()
       const { token } = await newPlayer(call)
@@ -274,6 +325,18 @@ describe.skipIf(!DATABASE_URL)('leaderboard server', () => {
       const game = (await call('GET', '/v1/artists')).json
       expect(game.map((a: { name: string }) => a.name)).toEqual(['DJ Beco', 'Nina Pixo'])
       expect(game[0]).not.toHaveProperty('active')
+      // The list is light: each signature image has its own address.
+      expect(game[1]).toMatchObject({ hasSignature: true, version: expect.any(String) })
+      expect(game[1]).not.toHaveProperty('signature')
+      expect(game[0].hasSignature).toBe(false)
+      const { url } = await startServer()
+      const image = await fetch(`${url}/v1/artists/${nina.json.id}/signature?v=${game[1].version}`)
+      expect(image.status).toBe(200)
+      expect(image.headers.get('content-type')).toBe('image/png')
+      expect(image.headers.get('cache-control')).toMatch(/immutable/)
+      expect(Buffer.from(await image.arrayBuffer()).equals(Buffer.from(PNG.split(',')[1], 'base64'))).toBe(true)
+      expect((await fetch(`${url}/v1/artists/${dj.id}/signature`)).status).toBe(404) // no image
+      expect((await fetch(`${url}/v1/artists/not-an-id/signature`)).status).toBe(404)
       await call('PUT', `/admin/artists/${dj.id}`, { token: LUIZ, body: { ...dj, active: false } })
       expect((await call('GET', '/v1/artists')).json).toHaveLength(1)
       expect((await call('GET', '/admin/artists', { token: LUIZ })).json).toHaveLength(2)
@@ -316,6 +379,18 @@ describe.skipIf(!DATABASE_URL)('leaderboard server', () => {
       expect(await online.submitRun(ticket!, log)).toMatchObject({ accepted: true, score: log.score, rank: 1 })
       expect(await online.setNickname('Teste_Cliente')).toBe(true)
       expect(await online.leaderboard('runner')).toEqual([{ rank: 1, playerId: me!.id, nickname: 'Teste_Cliente', score: log.score }])
+    })
+
+    it('lists the real artists with the address of each signature', async () => {
+      const { url, call } = await startServer()
+      const nina = (await call('POST', '/admin/artists', { token: LUIZ, body: { name: 'Nina Pixo', kind: 'graffiti', signature: PNG, phase: 2, minScore: 1200 } })).json
+      await call('POST', '/admin/artists', { token: LUIZ, body: { name: 'DJ Beco', kind: 'dj' } })
+      const artists = await createServerOnline(url, memory()).artists()
+      expect(artists.map((a) => a.name)).toEqual(['DJ Beco', 'Nina Pixo'])
+      expect(artists[0].signatureUrl).toBeNull()
+      expect(artists[1]).toMatchObject({ id: nina.id, kind: 'graffiti', phase: 2, minScore: 1200 })
+      expect((await fetch(artists[1].signatureUrl!)).headers.get('content-type')).toBe('image/png')
+      expect(await createServerOnline('http://127.0.0.1:9', memory()).artists()).toEqual([])
     })
 
     it('signs up again if the server forgot the player', async () => {

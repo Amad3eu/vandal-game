@@ -56,6 +56,18 @@
   color: var(--muted-ink);
 }
 
+.artist-instagram {
+  font-family: var(--font-pixel);
+  font-size: 0.75rem;
+  color: var(--artist, var(--spray-pink));
+  text-decoration: none;
+  filter: brightness(0.75);
+}
+
+.artist-instagram:hover {
+  text-decoration: underline;
+}
+
 /* Portrait drawn with blocks: hoodie, head, cap and spray can over a halftone disc. */
 .artist-portrait {
   position: relative;
@@ -116,6 +128,16 @@
   border-radius: 4px;
   background: var(--spray-yellow);
   transform: rotate(18deg);
+}
+
+/* DJs, MCs and b-boys/b-girls hold their thing instead of a spray can. */
+.portrait-icon {
+  right: 8px;
+  top: 48px;
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 var(--ink));
+  transform: rotate(12deg);
 }
 
 .portrait-mist {

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
+import { isUuid } from '../../src/game/server'
 import { ARTIST_KINDS, type AdminStore, type ArtistInput } from './admin-db'
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const NICKNAME = /^[\p{L}\p{N} _.-]{2,20}$/u
 const SIGNATURE = /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/]+=*$/
 const MODES = new Set(['runner', 'free'])
@@ -88,7 +88,7 @@ export function adminRouter(store: AdminStore, admins: Map<string, string>, fail
   const admin = (res: Response) => res.locals.admin as string
   const validId = (req: Request, res: Response) => {
     const id = req.params.id
-    if (typeof id === 'string' && UUID.test(id)) return id
+    if (isUuid(id)) return id
     res.status(400).json({ error: 'id' })
     return null
   }

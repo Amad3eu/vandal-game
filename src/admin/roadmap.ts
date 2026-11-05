@@ -60,6 +60,7 @@ export const PHASES: RoadmapPhase[] = [
       { title: 'App com Expo (React Native) usando a mesma engine do site', status: 'feito', pr: 5, date: '2026-09-26' },
       { title: 'APK de teste para Android (EAS)', status: 'feito', detail: 'Passo a passo no README.', pr: 6, date: '2026-09-27' },
       { title: 'Placar global no app', status: 'proximo', detail: 'O cliente do servidor já está pronto para reaproveitar.' },
+      { title: 'Artistas reais nos encontros do app', status: 'proximo', detail: 'No site já funciona; o app ainda mostra só os artistas do jogo.' },
       { title: 'Anúncio recompensado no app (AdMob)', status: 'ideia', detail: 'Precisa de um build de desenvolvimento do EAS.' },
       { title: 'Publicar na Play Store', status: 'ideia' },
     ],
@@ -136,8 +137,10 @@ export const PHASES: RoadmapPhase[] = [
       },
       {
         title: 'O jogo encontra os artistas do servidor pela pontuação e fase',
-        status: 'proximo',
-        detail: 'Muda a engine (os encontros entram no replay), então vem numa versão nova das regras.',
+        status: 'feito',
+        detail: 'Quem ainda não está no blackbook aparece primeiro; na rua, cada um na sua cor, com 🎧, 🎤 ou 🌀 para DJ, MC e breaking.',
+        pr: 15,
+        date: '2026-09-28',
       },
       { title: 'Conta que não se perde ao trocar de celular', status: 'ideia', detail: 'Ligar a conta anônima a um e-mail ou ao Google.' },
       {
@@ -189,6 +192,12 @@ export const PHASES: RoadmapPhase[] = [
 ]
 
 export const DECISIONS: Decision[] = [
+  {
+    date: '2026-09-28',
+    title: 'Quem aparece no encontro é escolhido pelo site',
+    choice: 'A engine decide quando há um encontro; o site escolhe o artista entre os cadastrados, pela fase e pela pontuação.',
+    why: 'O replay que o servidor confere não depende da lista de artistas, e a assinatura só conta durante o encontro, uma por encontro.',
+  },
   {
     date: '2026-09-28',
     title: 'Testes automáticos e revisão antes de cada PR',

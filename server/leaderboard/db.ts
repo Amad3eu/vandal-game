@@ -42,6 +42,10 @@ create table if not exists runs (
 create index if not exists runs_mode_score on runs (mode, score desc);
 create index if not exists runs_player_mode on runs (player_id, mode, score desc);
 
+-- The unlock rules of the active artists when the seed was handed out ({ id: { phase, minScore } }):
+-- a run is checked against what the player could meet, even if an admin edits artists meanwhile.
+alter table run_seeds add column if not exists artists jsonb;
+
 -- Moderation: a hidden player can still play, but stays off the board.
 alter table players add column if not exists hidden boolean not null default false;
 
@@ -110,8 +114,22 @@ export function createStore(pool: Pool) {
     },
 
     async issueSeed(playerId: string, seed: number, mode: string): Promise<{ id: string; seed: number }> {
-      const { rows } = await pool.query('insert into run_seeds (player_id, seed, mode) values ($1, $2, $3) returning id, seed', [playerId, seed, mode])
+      const { rows } = await pool.query(
+        `insert into run_seeds (player_id, seed, mode, artists)
+         values ($1, $2, $3, (
+           select coalesce(jsonb_object_agg(id, jsonb_build_object('phase', phase, 'minScore', min_score)), '{}'::jsonb)
+           from artists where active
+         ))
+         returning id, seed`,
+        [playerId, seed, mode]
+      )
       return { id: rows[0].id, seed: Number(rows[0].seed) }
+    },
+
+    /** The artists' unlock rules saved with a seed (null for seeds handed out before they were saved). */
+    async seedArtists(seedId: string): Promise<Record<string, { phase: number; minScore: number }> | null> {
+      const { rows } = await pool.query('select artists from run_seeds where id = $1', [seedId])
+      return (rows[0]?.artists as Record<string, { phase: number; minScore: number }> | null | undefined) ?? null
     },
 
     /** The seed as submission.ts expects it, or null. */

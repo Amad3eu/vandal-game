@@ -7,6 +7,7 @@ import { GAME_MODES } from './data/gameModes'
 import { CONTINUES_PER_CHECKPOINT, checkpointKey } from './data/phases'
 import { getAdsProvider } from './ads/ads'
 import { getOnline, type RunTicket } from './online/online'
+import type { RosterArtist } from './data/encounters'
 import { LOCAL_BOARD_KEY, addLocalScore, parseLocalBoard, type LocalScore } from './data/scoreBoard'
 import { Checkpoint, GameMode, GraffitiArt } from './types/game'
 import './App.css'
@@ -63,6 +64,15 @@ export default function App() {
   const [ticket, setTicket] = useState<RunTicket | null>(null)
   const [starting, setStarting] = useState(false)
   const [submission, setSubmission] = useState<Submission>({ status: 'none' })
+  // Real artists, DJs, MCs and b-boys/b-girls from the admin page, met in graffiti encounters.
+  const [artists, setArtists] = useState<RosterArtist[]>([])
+  useEffect(() => {
+    let cancelled = false
+    online?.artists().then((list) => !cancelled && setArtists(list))
+    return () => {
+      cancelled = true
+    }
+  }, [online])
   // Best runs on this device (no server needed) and the last run's place among them.
   const [localBoard, setLocalBoard] = useState<LocalScore[]>(() => {
     try {
@@ -76,6 +86,8 @@ export default function App() {
 
   const handleStartGame = async () => {
     if (starting) return
+    // The artists as they are now (an admin may have changed them since the page opened).
+    online?.artists().then(setArtists)
     // A ranked run gets its seed from the server; if it can't be reached, the run is offline.
     let runTicket: RunTicket | null = null
     if (online) {
@@ -208,6 +220,7 @@ export default function App() {
           selectedMusic={selectedMusic}
           checkpoint={runCheckpoint}
           seed={ticket?.seed}
+          artists={artists}
           onGameOver={handleGameOver}
         />
       )}

@@ -7,6 +7,6 @@
  */
 export { ENGINE_VERSION, MIN_WORLD_HEIGHT, MIN_WORLD_WIDTH, TICK_MS } from './config'
 export { replayRun, verifyRun } from './replay'
-export { LIMITS, checkSubmission, isRunLog } from './submission'
-export type { IssuedSeed, SubmissionResult } from './submission'
+export { LIMITS, checkSubmission, isRunLog, isUuid } from './submission'
+export type { ArtistRule, IssuedSeed, SubmissionResult } from './submission'
 export type { RunEvent, RunLog } from './engine'

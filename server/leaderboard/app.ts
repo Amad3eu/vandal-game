@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import express, { type NextFunction, type Request, type Response } from 'express'
-import { ENGINE_VERSION, checkSubmission } from '../../src/game/server'
+import { ENGINE_VERSION, checkSubmission, isUuid } from '../../src/game/server'
 import { adminRouter } from './admin'
 import type { AdminStore } from './admin-db'
 import type { Player, Store } from './db'
@@ -17,7 +17,6 @@ export interface AppOptions {
 /** More seeds than this in 10 minutes looks like a script, not a person restarting runs. */
 const SEEDS_PER_10_MINUTES = 40
 const NICKNAME = /^[\p{L}\p{N} _.-]{2,20}$/u
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MODES = new Set(['runner', 'free'])
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
@@ -127,12 +126,24 @@ export function createApp(store: Store, adminStore: AdminStore, { allowedOrigins
   // A finished run: replayed with the engine; if it matches, the replayed score is ranked.
   app.post('/v1/runs/submit', auth, async (req, res) => {
     const seedId = req.body?.seedId
-    if (typeof seedId !== 'string' || !UUID.test(seedId)) {
+    if (!isUuid(seedId)) {
       res.status(400).json({ accepted: false, reason: 'seed-unknown' })
       return
     }
     const player = me(res)
-    const result = checkSubmission(req.body.log, await store.seed(seedId), player.id)
+    // The real artists signed in the run, with the phase and score that unlock each one.
+    const events: unknown[] = Array.isArray(req.body.log?.events) ? req.body.log.events : []
+    const signed = new Set<string>()
+    for (const event of events) {
+      const artist = (event as { type?: unknown; artist?: unknown })?.type === 'signature' ? (event as { artist?: unknown }).artist : null
+      if (isUuid(artist) && signed.size < 100) signed.add(artist)
+    }
+    // As they were when the run started (what the player could meet); artists not in that snapshot
+    // (older seeds) are looked up now.
+    const snapshot = (await store.seedArtists(seedId)) ?? {}
+    const rules = await adminStore.artistRules([...signed].filter((id) => !snapshot[id]))
+    for (const id of signed) if (snapshot[id]) rules.set(id, snapshot[id])
+    const result = checkSubmission(req.body.log, await store.seed(seedId), player.id, Date.now(), rules)
     if (!result.ok) {
       res.status(422).json({ accepted: false, reason: result.reason })
       return
@@ -158,8 +169,26 @@ export function createApp(store: Store, adminStore: AdminStore, { allowedOrigins
 
   // The real artists and DJs switched on in the admin page, for the game to meet by score and phase.
   app.get('/v1/artists', async (_req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=60')
-    res.json((await adminStore.artists(true)).map(({ updatedAt: _updatedAt, active: _active, ...artist }) => artist))
+    // Small (no images) and read at every run start: always the current list.
+    res.setHeader('Cache-Control', 'no-cache')
+    res.json(await adminStore.publicArtists())
+  })
+
+  // A signature image, loaded only when the player meets that artist. The address carries the
+  // artist's version (?v=), so it can be cached for good.
+  app.get('/v1/artists/:id/signature', async (req, res) => {
+    const signature = isUuid(req.params.id) ? await adminStore.artistSignature(req.params.id) : null
+    const image = signature?.match(/^data:(image\/(?:png|webp|jpeg));base64,(.+)$/)
+    if (!image) {
+      res.status(404).json({ error: 'not-found' })
+      return
+    }
+    res.setHeader('Content-Type', image[1])
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    // Public images, readable from any page: the <img> and the fetch that keeps a copy in the
+    // blackbook share one cached response, which must always carry this header.
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.send(Buffer.from(image[2], 'base64'))
   })
 
   app.use('/admin', adminRouter(adminStore, admins, failedAdminLoginAllowed))

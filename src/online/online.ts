@@ -8,6 +8,7 @@
  */
 import type { GameMode } from '../types/game'
 import type { RunLog } from '../game/engine'
+import type { RosterArtist } from '../data/encounters'
 import { createDevOnline } from './dev'
 import { createServerOnline } from './server'
 import { createSupabaseOnline } from './supabase'
@@ -40,6 +41,8 @@ export interface OnlineService {
   leaderboard(mode: GameMode): Promise<LeaderboardRow[]>
   /** This player's id and nickname (signing in anonymously the first time). */
   me(): Promise<{ id: string; nickname: string | null } | null>
+  /** The real artists, DJs, MCs and b-boys/b-girls the game can meet (empty when unknown). */
+  artists(): Promise<RosterArtist[]>
   setNickname(nickname: string): Promise<boolean>
 }
 

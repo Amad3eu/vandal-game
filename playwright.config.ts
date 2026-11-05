@@ -40,6 +40,7 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: false,
     timeout: 180_000,
-    env: { VITE_LEADERBOARD_URL: 'http://leaderboard.test' },
+    // VITE_E2E exposes the engine to the tests (window.__engine); production builds don't have it.
+    env: { VITE_LEADERBOARD_URL: 'http://leaderboard.test', VITE_E2E: '1' },
   },
 })
